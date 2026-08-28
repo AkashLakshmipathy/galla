@@ -1,0 +1,12 @@
+{
+  "party_id": "selvam",
+  "source": "voice",
+  "transcript": "அண்ணே, இருபது மூட்டை ராம்கோ 53 வேணும். அப்புறம் பதிமூன்று முக்கால் பைப், பதினொன்று ஜி ஐ பைப் முக்கால், எட்டு நாலு இன்ச் கீல் அனுப்புங்க.",
+  "transcript_en": "Anna, I need twenty bags of Ramco 53. Then thirteen 3/4 pipes, eleven GI 3/4 pipes, and eight 4-inch hinges.",
+  "lines": [
+    {"name_raw": "ராம்கோ 53", "qty": 20, "unit": "bag", "confidence": 0.98},
+    {"name_raw": "முக்கால் பைப்", "qty": 13, "unit": "length", "confidence": 0.96},
+    {"name_raw": "ஜி ஐ பைப் முக்கால்", "qty": 11, "unit": "length", "confidence": 0.95},
+    {"name_raw": "நாலு இன்ச் கீல்", "qty": 8, "unit": "piece", "confidence": 0.96}
+  ]
+}

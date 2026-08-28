@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { color-scheme: light; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  /* Every amount in this product is money. Money lines up. */
+  .tnum { font-variant-numeric: tabular-nums; }
+  button { -webkit-user-select: none; user-select: none; }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .safe-bottom { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+  .safe-top { padding-top: max(0px, env(safe-area-inset-top)); }
+}
+
+/* DESIGN-TOKENS: "Respect reduced-motion." The trace strip still advances —
+   it just stops animating while it does. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "supplier_name_raw": "Sri Balaji Hardware Agencies",
+  "supplier_gstin": "33AABCS1429B1ZP",
+  "invoice_no": "2871",
+  "invoice_date": "2026-08-26",
+  "lines": [
+    {"description_raw": "G.I.PIPE 3/4\" HVY 6MTR TATA", "qty": 25, "rate": 610,
+     "gst_rate": 18, "confidence": 0.96},
+    {"description_raw": "CPVC PIPE 3/4 10FT ASTRAL", "qty": 20, "rate": 210,
+     "gst_rate": 18, "confidence": 0.97},
+    {"description_raw": "STEEL BUTT HINGE 4\" SS EBCO", "qty": 100, "rate": 62,
+     "gst_rate": 18, "confidence": 0.96}
+  ]
+}

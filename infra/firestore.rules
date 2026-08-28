@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    // Agents use the Admin SDK server-side and bypass these rules.
+    // Client (PWA) access is limited to the authenticated shop owner.
+    function isOwner() {
+      return request.auth != null && request.auth.token.shop_id == 'main';
+    }
+    match /{document=**} {
+      allow read, write: if isOwner();
+    }
+  }
+}

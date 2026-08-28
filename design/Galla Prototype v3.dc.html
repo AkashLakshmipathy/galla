@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;family=Noto+Sans+Tamil:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E5E5EA}
+a{color:#0A6BE0}a:hover{color:#111113}
+input{outline:none}
+@keyframes gpulse{0%,100%{box-shadow:0 0 0 0 rgba(10,107,224,.3)}50%{box-shadow:0 0 0 7px rgba(10,107,224,0)}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes wv{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none !important}}
+</style>
+</helmet>
+<div style="max-width:390px;margin:0 auto;height:100dvh;display:flex;flex-direction:column;background:#F4F4F6;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI','Noto Sans','Noto Sans Tamil',sans-serif;color:#111113;position:relative;overflow:hidden;-webkit-font-smoothing:antialiased">
+
+<sc-if value="{{ showMain }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 20px 14px;flex-shrink:0;gap:8px">
+    <div style="font-size:32px;font-weight:700;letter-spacing:-1.1px;line-height:1">{{ pageTitle }}</div>
+    <sc-if value="{{ demoOn }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ openDemo }}" style="min-height:32px;border:none;background:#EEEEF0;color:#77777C;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;font-family:inherit;display:flex;align-items:center;gap:6px;cursor:pointer"><span style="width:6px;height:6px;border-radius:50%;background:#C97F0E"></span>Demo</button>
+    </sc-if>
+    <sc-if value="{{ demoOff }}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{ toggleDemo }}" style="min-height:32px;border:none;background:#EEEEF0;color:#AEAEB2;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Owner</button>
+    </sc-if>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;min-height:0">
+
+    <sc-if value="{{ tabCounter }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="S1 Counter" style="display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:0 16px 24px;align-content:start">
+
+        <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;background:#EEEEF0;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:600;color:#77777C;animation:rise .3s ease both"><span style="width:6px;height:6px;border-radius:50%;background:#AEAEB2"></span>Offline — saved locally, will sync · ஆஃப்லைன்</div>
+        </sc-if>
+
+        <div style="display:flex;gap:8px">
+          <button onClick="{{ openScan }}" style="flex:1.4;min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Scan</button>
+          <button onClick="{{ goInventory }}" style="flex:1;min-height:50px;border:none;background:#fff;color:#111113;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Inventory</button>
+          <button onClick="{{ openRecord }}" style="width:50px;min-height:50px;border:none;background:#fff;border-radius:999px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg></button>
+        </div>
+
+        <div style="font-size:12px;color:#AEAEB2;text-align:center;font-weight:500;margin-top:4px">Today · 28-08-2026</div>
+
+        <sc-if value="{{ emptyVisible }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border-radius:18px;padding:44px 24px;text-align:center;display:grid;gap:8px;justify-items:center;animation:rise .3s ease both">
+            <div style="width:52px;height:52px;border-radius:50%;background:#F4F4F6;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#AEAEB2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg></div>
+            <div style="font-size:17px;font-weight:700;letter-spacing:-.3px;margin-top:6px">All quiet · அமைதி</div>
+            <div style="font-size:13px;color:#77777C;line-height:1.6;max-width:240px">Orders from WhatsApp and the counter land here. Start with your first bill.</div>
+            <button onClick="{{ openScan }}" style="min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;padding:0 26px;margin-top:10px">Scan your first bill</button>
+            <button onClick="{{ openRecord }}" style="min-height:44px;border:none;background:none;color:#0A6BE0;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer">Or record a voice note</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ feedVisible }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#EAF6EE;border-radius:14px;padding:12px 16px;font-size:13px;font-weight:600;color:#28934E;text-align:center;animation:rise .3s ease both">{{ toast }}</div>
+        </sc-if>
+        <sc-if value="{{ uploadError }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ retryUpload }}" style="display:flex;gap:12px;align-items:center;background:#fff;border:none;border-radius:18px;padding:16px 18px;min-height:64px;text-align:left;font-family:inherit;cursor:pointer;width:100%;animation:rise .3s ease both">
+            <span style="width:8px;height:8px;border-radius:50%;background:#D23B2E;flex-shrink:0"></span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:600">{{ errTitle }}</div>
+              <div style="font-size:13px;color:#77777C;margin-top:2px">{{ errSub }}</div>
+            </div>
+            <div style="font-size:13px;font-weight:600;color:#0A6BE0">{{ errAction }}</div>
+          </button>
+        </sc-if>
+
+        <button onClick="{{ openInvoice }}" style="display:flex;align-items:center;gap:14px;background:#fff;border:none;border-radius:18px;padding:16px 18px;min-height:68px;text-align:left;font-family:inherit;cursor:pointer;width:100%">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#77777C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:600">Supplier bill scanned</div>
+            <div style="font-size:13px;color:#77777C;margin-top:2px">4 lines read · 1 needs your eye</div>
+          </div>
+          <div style="font-size:12px;color:#AEAEB2">4:12 PM</div>
+          <div style="color:#C7C7CC;font-size:17px">›</div>
+        </button>
+
+        <div style="background:#fff;border-radius:18px;padding:18px;display:grid;gap:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:12px;min-width:0">
+              <div style="width:40px;height:40px;border-radius:50%;background:#F0F0F2;color:#111113;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0">SE</div>
+              <div style="min-width:0">
+                <div style="font-size:15px;font-weight:600">Selvam</div>
+                <div style="font-size:12px;color:#77777C">Contractor · via WhatsApp</div>
+              </div>
+            </div>
+            <div style="font-size:12px;color:#AEAEB2">5:38 PM</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:#F4F4F6;border-radius:999px;padding:7px 16px 7px 7px">
+            <div style="width:34px;height:34px;border-radius:50%;background:#0A6BE0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;padding-left:2px">▶</div>
+            <div style="display:flex;align-items:center;gap:2.5px;flex:1;height:22px;min-width:0;overflow:hidden">
+              <sc-for list="{{ waveBars }}" as="w" hint-placeholder-count="20">
+                <div style="width:2.5px;border-radius:2px;background:#C7C7CC;height:{{ w.h }}px"></div>
+              </sc-for>
+            </div>
+            <div style="font-size:12px;color:#77777C;font-variant-numeric:tabular-nums">0:14</div>
+          </div>
+          <div style="font-size:14px;line-height:1.6;color:#111113">“அண்ணே, 20 மூட்டை ராம்கோ 53, முக்கால் பைப்பு பத்து, ஜிஐ பைப்பு பதினைஞ்சு, நாலு இஞ்ச் கீல் பன்னெண்டு அனுப்புங்க.”
+            <div style="color:#77777C;font-size:12px;margin-top:6px">“Send 20 bags Ramco 53, ten ¾ pipe, fifteen GI pipe, twelve 4-inch hinges.”</div>
+          </div>
+
+          <div style="border-top:1px solid #F0F0F2;padding-top:16px;display:grid;gap:12px">
+            <div style="display:flex;align-items:flex-start">
+              <sc-for list="{{ traceChips }}" as="c" hint-placeholder-count="4">
+                <div style="display:flex;align-items:flex-start;flex:{{ c.grow }};min-width:0">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:56px">
+                    <div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:{{ c.bg }};color:{{ c.fg }};animation:{{ c.anim }}">{{ c.mark }}</div>
+                    <div style="font-size:10px;font-weight:500;color:{{ c.lc }};text-align:center;line-height:1.3">{{ c.label }}</div>
+                  </div>
+                  <sc-if value="{{ c.link }}" hint-placeholder-val="{{ true }}"><div style="flex:1;height:1.5px;margin-top:11px;background:{{ c.linkBg }}"></div></sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:13px;color:#77777C;text-align:center">{{ traceLine }} <button onClick="{{ openActivity }}" style="border:none;background:none;color:#0A6BE0;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;padding:2px 4px">Detail</button></div>
+          </div>
+
+          <sc-if value="{{ showDraft }}" hint-placeholder-val="{{ false }}">
+            <div style="border-top:1px solid #F0F0F2;animation:rise .4s ease both">
+              <sc-for list="{{ draftItems }}" as="it" hint-placeholder-count="4">
+                <div style="display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #F0F0F2;align-items:center">
+                  <div style="min-width:0">
+                    <div style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.n }}</div>
+                    <div style="font-size:12px;color:#AEAEB2;margin-top:1px">{{ it.q }} × {{ it.r }}</div>
+                  </div>
+                  <div style="font-size:14px;font-variant-numeric:tabular-nums;color:#77777C">{{ it.a }}</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ subOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:grid;gap:10px;padding:12px 0;border-bottom:1px solid #F0F0F2;animation:rise .35s ease both">
+                  <div style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#C97F0E;flex-shrink:0;margin-top:5px"></span>
+                    <div style="font-size:13px;line-height:1.55"><b>Ramco 53 is short</b> — 12 bags left of 20. Dalmia DSP 53 in stock at ₹425/bag.</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <button onClick="{{ acceptSub }}" style="flex:1.4;min-height:44px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">Switch to Dalmia</button>
+                    <button onClick="{{ keepSub }}" style="flex:1;min-height:44px;border:none;background:#EEEEF0;color:#111113;border-radius:999px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">Keep Ramco</button>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ subNote }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:12px;color:#77777C;padding:10px 0;border-bottom:1px solid #F0F0F2">{{ subNote }}</div>
+              </sc-if>
+              <div style="display:flex;justify-content:space-between;padding:14px 0 2px;align-items:baseline">
+                <div style="font-size:13px;color:#77777C">Total incl. GST</div>
+                <div style="font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.4px">{{ draftTotal }}</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showVerdict }}" hint-placeholder-val="{{ false }}">
+            <div style="border-top:1px solid #F0F0F2;padding-top:16px;display:grid;gap:12px;animation:rise .45s ease both">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#C97F0E;flex-shrink:0;margin-top:6px"></span>
+                <div style="font-size:14px;line-height:1.55"><b style="color:#9c6408">Part-payment suggested.</b> Selvam owes ₹87,400 of his ₹95,000 limit, last paid 34 days ago — ask ₹15,000 advance.</div>
+              </div>
+              <sc-if value="{{ selvamPending }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ openSelvam }}" style="min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Review &amp; decide · முடிவு</button>
+              </sc-if>
+              <sc-if value="{{ selvamDecided }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:13px;font-weight:600;color:#28934E;text-align:center">{{ selvamDoneText }}</div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ selvamDecided }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ openQuoteDoc }}" style="border-top:1px solid #F0F0F2;padding-top:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;animation:rise .4s ease both;cursor:pointer">
+              <div style="display:flex;gap:12px;align-items:center;min-width:0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#77777C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                <div style="min-width:0">
+                  <div style="font-size:14px;font-weight:600">Quotation #Q-1043</div>
+                  <div style="font-size:12px;color:#28934E">Sent on WhatsApp ✓</div>
+                </div>
+              </div>
+              <div style="font-weight:600;font-size:15px;font-variant-numeric:tabular-nums">{{ draftTotal }}</div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:#fff;border-radius:18px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:15px;font-weight:600">Today's close</div><div style="font-size:12px;color:#AEAEB2">6:00 PM</div></div>
+          <div style="display:grid;margin-top:6px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0;border-bottom:1px solid #F0F0F2"><span style="color:#77777C">Orders</span><b style="font-variant-numeric:tabular-nums">14 · ₹42,350</b></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0;border-bottom:1px solid #F0F0F2"><span style="color:#77777C">Cash / Credit</span><b>66% / 34%</b></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0;border-bottom:1px solid #F0F0F2"><span style="color:#77777C">Exposure</span><b style="font-variant-numeric:tabular-nums">₹2,34,600 <span style="color:#28934E;font-weight:600;font-size:12px">−₹8,000</span></b></div>
+            <div onClick="{{ goInventory }}" style="display:flex;justify-content:space-between;font-size:13px;padding:10px 0 2px;cursor:pointer"><span style="color:#77777C">Low stock</span><b style="color:#D23B2E">4 items <span style="color:#C7C7CC;font-weight:400">›</span></b></div>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ replay }}" style="min-height:44px;border:none;background:none;color:#0A6BE0;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer">Replay voice note</button>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ tabApprovals }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Approvals" style="display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:0 16px 24px;align-content:start">
+        <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+          <sc-for list="{{ apprList }}" as="p" hint-placeholder-count="3">
+            <button onClick="{{ p.open }}" style="display:flex;gap:12px;align-items:center;background:none;border:none;border-bottom:1px solid #F0F0F2;padding:16px 18px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer;width:100%">
+              <div style="width:8px;height:8px;border-radius:50%;background:{{ p.stripe }};flex-shrink:0"></div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                  <div style="font-size:15px;font-weight:600">{{ p.name }}</div>
+                  <div style="font-weight:600;font-size:15px;font-variant-numeric:tabular-nums">{{ p.amount }}</div>
+                </div>
+                <div style="font-size:13px;color:#77777C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ p.short }}</div>
+              </div>
+              <div style="color:#C7C7CC;font-size:17px">›</div>
+            </button>
+          </sc-for>
+        </div>
+        <button onClick="{{ openQueue }}" style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:none;border-radius:18px;padding:16px 18px;min-height:64px;font-family:inherit;cursor:pointer;text-align:left">
+          <div>
+            <div style="font-size:15px;font-weight:600">Confirm queue</div>
+            <div style="font-size:13px;color:#77777C;margin-top:2px">Low-confidence reads · உறுதி வரிசை</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:#C97F0E">{{ qBadge }}</span><span style="color:#C7C7CC;font-size:17px">›</span></div>
+        </button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ tabInventory }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Inventory" style="display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:0 16px 24px;align-content:start">
+        <input value="{{ invQuery }}" onChange="{{ setQuery }}" placeholder="Search · தேடு" style="min-height:46px;border:none;background:#E9E9EB;border-radius:12px;padding:0 16px;font-size:15px;font-family:inherit;color:#111113;width:100%;box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
+          <div style="font-size:13px;color:#77777C">823 items · ₹6,42,800 in stock</div>
+          <div style="font-size:13px;font-weight:600;color:#D23B2E">4 low</div>
+        </div>
+        <sc-if value="{{ addedItem }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#EAF6EE;border-radius:14px;padding:12px 16px;font-size:13px;font-weight:600;color:#28934E;animation:rise .4s ease both">{{ addedItem }} added ✓</div>
+        </sc-if>
+        <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+          <sc-for list="{{ invItems }}" as="v" hint-placeholder-count="6">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #F0F0F2;min-height:52px">
+              <div style="min-width:0">
+                <div style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.n }}</div>
+                <div style="font-size:12px;color:#AEAEB2;margin-top:1px">{{ v.cat }} · {{ v.price }}/{{ v.unit }}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;color:{{ v.stockColor }}">{{ v.stock }}</div>
+                <div style="font-size:10px;font-weight:600;color:{{ v.stockColor }};letter-spacing:.4px">{{ v.stockNote }}</div>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ invEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:24px;text-align:center;font-size:13px;color:#AEAEB2">No items match “{{ invQuery }}”</div>
+          </sc-if>
+        </div>
+        <button onClick="{{ openAddItem }}" style="min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">＋ Add item · சேர்</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ tabShop }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="S6 Dashboard" style="display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:0 16px 24px;align-content:start">
+        <div style="background:#fff;border-radius:18px;padding:22px 18px 18px;display:grid;gap:4px">
+          <div style="font-size:13px;color:#77777C;text-align:center">Credit exposure · கடன் நிலுவை</div>
+          <div style="display:flex;justify-content:center;position:relative">
+            <svg viewBox="0 0 200 110" style="width:210px;display:block">
+              <path d="M24,100 A76,76 0 0 1 176,100" fill="none" stroke="#F0F0F2" stroke-width="9" stroke-linecap="round"></path>
+              <path d="M24,100 A76,76 0 0 1 176,100" fill="none" stroke="#C97F0E" stroke-width="9" stroke-linecap="round" stroke-dasharray="141 239"></path>
+            </svg>
+            <div style="position:absolute;bottom:0;left:0;right:0;text-align:center">
+              <div style="font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:-1px">₹2,34,600</div>
+              <div style="font-size:12px;color:#AEAEB2;margin-top:2px">of ₹4,00,000 · 59%</div>
+            </div>
+          </div>
+          <div style="display:grid;margin-top:18px;border-top:1px solid #F0F0F2">
+            <div style="display:flex;justify-content:space-between;font-size:14px;align-items:center;padding:12px 0;border-bottom:1px solid #F0F0F2"><span style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#D23B2E"></span>Ravi Builders <span style="color:#AEAEB2;font-size:12px">61 d</span></span><span style="font-variant-numeric:tabular-nums;font-weight:600">₹1,12,500</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px;align-items:center;padding:12px 0;border-bottom:1px solid #F0F0F2"><span style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#C97F0E"></span>Selvam <span style="color:#AEAEB2;font-size:12px">34 d</span></span><span style="font-variant-numeric:tabular-nums;font-weight:600">₹87,400</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px;align-items:center;padding:12px 0 2px"><span style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#28934E"></span>Kumar Constructions <span style="color:#AEAEB2;font-size:12px">9 d</span></span><span style="font-variant-numeric:tabular-nums;font-weight:600">₹12,000</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div style="background:#fff;border-radius:18px;padding:18px">
+            <div style="font-size:12px;color:#77777C">Today's sales</div>
+            <div style="font-weight:700;font-size:22px;margin:4px 0 10px;font-variant-numeric:tabular-nums;letter-spacing:-.5px">₹42,350</div>
+            <div style="height:4px;border-radius:2px;background:#F0F0F2;overflow:hidden"><div style="width:66%;height:100%;background:#111113"></div></div>
+            <div style="font-size:11px;color:#AEAEB2;margin-top:6px">Cash 66% · Credit 34%</div>
+          </div>
+          <button onClick="{{ goApprovals }}" style="background:#fff;border:none;border-radius:18px;padding:18px;text-align:left;font-family:inherit;cursor:pointer">
+            <div style="font-size:12px;color:#77777C">Approvals</div>
+            <div style="font-weight:700;font-size:27px;margin-top:2px;letter-spacing:-.5px">3</div>
+            <div style="font-size:12px;color:#0A6BE0;font-weight:500;margin-top:8px">Open ›</div>
+          </button>
+        </div>
+        <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+          <button onClick="{{ openGst }}" style="display:flex;justify-content:space-between;align-items:center;background:none;border:none;border-bottom:1px solid #F0F0F2;padding:16px 18px;min-height:60px;font-family:inherit;cursor:pointer;text-align:left;width:100%">
+            <div>
+              <div style="font-size:15px;font-weight:600">GST — July</div>
+              <div style="font-size:13px;color:#28934E;margin-top:2px">Compiled 6:02 AM · Sent to CA ✓</div>
+            </div>
+            <div style="color:#C7C7CC;font-size:17px">›</div>
+          </button>
+          <button onClick="{{ openKhata }}" style="display:flex;justify-content:space-between;align-items:center;background:none;border:none;padding:16px 18px;min-height:60px;font-family:inherit;cursor:pointer;text-align:left;width:100%">
+            <div>
+              <div style="font-size:15px;font-weight:600">Digitize old khata</div>
+              <div style="font-size:13px;color:#77777C;margin-top:2px">Page 12 read · review 12 entries</div>
+            </div>
+            <div style="color:#C7C7CC;font-size:17px">›</div>
+          </button>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="display:flex;border-top:1px solid #E9E9EB;background:rgba(250,250,250,.94);backdrop-filter:blur(14px);flex-shrink:0">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+      <button onClick="{{ t.go }}" style="flex:1;min-height:58px;border:none;background:none;font-family:inherit;cursor:pointer;color:{{ t.c }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;position:relative">
+        <div style="font-size:16px;line-height:1;font-weight:500">{{ t.glyph }}</div>
+        <div style="font-size:10px;font-weight:600">{{ t.label }}</div>
+        <sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:8px;right:27%;background:#D23B2E;color:#fff;border-radius:999px;min-width:15px;height:15px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">3</div></sc-if>
+      </button>
+    </sc-for>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showApproval }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="S2 Approval" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ back }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0">
+      <div style="padding:4px 24px 28px;text-align:center">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:{{ aBg }};color:{{ aFg }};border-radius:999px;padding:7px 16px;font-size:13px;font-weight:600">{{ aTitle }}</div>
+        <div style="font-weight:700;font-size:46px;letter-spacing:-2px;margin:20px 0 6px;font-variant-numeric:tabular-nums">{{ aAmount }}</div>
+        <div style="font-size:14px;color:#77777C">{{ aName }} · {{ aTamil }}</div>
+        <div style="font-size:15px;line-height:1.65;margin:24px auto 0;max-width:300px">{{ aReason }}</div>
+        <div style="font-size:12px;color:#AEAEB2;margin-top:10px;line-height:1.6">{{ aReasonTa }}</div>
+      </div>
+      <div style="padding:0 16px;display:grid;gap:14px;grid-template-columns:minmax(0,1fr)">
+        <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+          <button onClick="{{ toggleOrder }}" style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;padding:16px 18px;min-height:52px;font-family:inherit;cursor:pointer">
+            <div style="font-size:14px;font-weight:600">{{ aItemLine }}</div>
+            <div style="color:#AEAEB2">{{ orderCaret }}</div>
+          </button>
+          <sc-if value="{{ orderOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:0 18px 6px">
+              <sc-for list="{{ aItems }}" as="it" hint-placeholder-count="4">
+                <div style="display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-top:1px solid #F0F0F2">
+                  <div style="font-size:13px">{{ it.n }} <span style="color:#AEAEB2;font-size:11px">{{ it.q }} × {{ it.r }}</span></div>
+                  <div style="font-size:13px;font-variant-numeric:tabular-nums;color:#77777C">{{ it.a }}</div>
+                </div>
+              </sc-for>
+              <div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid #F0F0F2;font-size:13px"><span style="color:#77777C">Subtotal {{ aSub }} + GST {{ aGst }}</span><b style="font-variant-numeric:tabular-nums">{{ aAmount }}</b></div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 20px 22px;flex-shrink:0;display:grid;gap:6px">
+      <sc-if value="{{ aPending }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ aButtons }}" as="b" hint-placeholder-count="3">
+          <button onClick="{{ b.tap }}" style="min-height:{{ b.h }}px;border:none;background:{{ b.bg }};color:{{ b.fg }};border-radius:999px;font-size:{{ b.fs }}px;font-weight:600;font-family:inherit;cursor:pointer;width:100%">{{ b.l }}</button>
+        </sc-for>
+      </sc-if>
+      <sc-if value="{{ aDecided }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:14px;font-weight:600;color:#28934E;text-align:center;padding:10px 0;animation:rise .4s ease both">{{ aDoneText }}</div>
+        <button onClick="{{ openQuoteDoc }}" style="min-height:44px;border:none;background:none;color:#0A6BE0;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer">Preview quotation</button>
+        <button onClick="{{ back }}" style="min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Done</button>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showInvoice }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="S3 Invoice review" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ back }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+      <div style="font-size:15px;font-weight:600">Purchase entry</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:4px 16px 16px;display:grid;gap:14px;align-content:start;grid-template-columns:minmax(0,1fr)">
+      <sc-if value="{{ invReading }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;gap:20px;justify-items:center;padding:44px 0 20px">
+          <div style="width:150px;border-radius:14px;background:#FBFAF6;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);padding:14px 12px">
+            <div style="font-size:8px;font-weight:700;text-align:center;color:#77777C;letter-spacing:.5px">SRI BALAJI HARDWARE</div>
+            <div style="border-top:1px solid #EDE8DA;margin:7px 0"></div>
+            <div style="display:grid;gap:5px"><div style="height:4px;border-radius:2px;background:#EDE8DA;width:92%"></div><div style="height:4px;border-radius:2px;background:#EDE8DA;width:74%"></div><div style="height:4px;border-radius:2px;background:#EDE8DA;width:86%"></div><div style="height:4px;border-radius:2px;background:#EDE8DA;width:61%"></div><div style="height:4px;border-radius:2px;background:#EDE8DA;width:80%"></div></div>
+          </div>
+          <div style="display:flex;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#0A6BE0;animation:blink 1s ease 0s infinite"></span><span style="width:7px;height:7px;border-radius:50%;background:#0A6BE0;animation:blink 1s ease .2s infinite"></span><span style="width:7px;height:7px;border-radius:50%;background:#0A6BE0;animation:blink 1s ease .4s infinite"></span></div>
+          <div style="text-align:center">
+            <div style="font-size:15px;font-weight:600">Reading your bill…</div>
+            <div style="font-size:12px;color:#AEAEB2;margin-top:4px">பில் படிக்கிறேன் · Purchase Entry agent</div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ invReady }}" hint-placeholder-val="{{ true }}">
+      <div style="position:sticky;top:0;z-index:2;background:#F4F4F6;padding:4px 0 2px">
+        <div style="display:flex;gap:12px;align-items:center;background:#fff;border-radius:14px;padding:10px 14px">
+          <div style="width:34px;height:44px;border-radius:6px;background:#FBFAF6;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);flex-shrink:0;padding:5px 4px;display:grid;gap:3px;align-content:start"><div style="height:2.5px;background:#EDE8DA;width:88%"></div><div style="height:2.5px;background:#EDE8DA;width:70%"></div><div style="height:2.5px;background:#EDE8DA;width:82%"></div><div style="height:2.5px;background:#EDE8DA;width:58%"></div><div style="height:2.5px;background:#EDE8DA;width:76%"></div></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sri Balaji Hardware Agencies</div>
+            <div style="font-size:11px;color:#AEAEB2;margin-top:2px">Bill #2871 · GSTIN 33AABCS1234F1Z5 · read in 2.3 s</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+        <sc-for list="{{ invRows }}" as="r" hint-placeholder-count="4">
+          <button onClick="{{ r.tap }}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border:none;border-bottom:1px solid #F0F0F2;background:none;min-height:56px;text-align:left;font-family:inherit;cursor:pointer">
+            <div style="min-width:0">
+              <div style="font-size:14px;font-weight:500">{{ r.n }}</div>
+              <div style="font-size:12px;color:#AEAEB2;margin-top:1px">{{ r.q }} × {{ r.r }} · GST {{ r.tax }} = {{ r.a }}</div>
+            </div>
+            <div style="flex-shrink:0;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:600;background:{{ r.chipBg }};color:{{ r.chipFg }}">{{ r.chip }}</div>
+          </button>
+        </sc-for>
+      </div>
+      <div style="font-size:12px;color:#AEAEB2;text-align:center">Amber needs a look · tap any line to edit qty or rate.</div>
+      </sc-if>
+    </div>
+    <sc-if value="{{ invReady }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:12px 20px 22px;flex-shrink:0;display:grid;gap:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#77777C;padding:0 4px"><span>{{ invDelta }}</span><b style="color:#111113;font-size:15px;font-variant-numeric:tabular-nums">{{ invTotal }}</b></div>
+      <sc-if value="{{ invPending }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ saveInv }}" style="min-height:52px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Save purchase · சேமி</button>
+      </sc-if>
+      <sc-if value="{{ invSaved }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:14px;font-weight:600;color:#28934E;text-align:center;animation:rise .4s ease both">Saved · stock updated · payable recorded ✓</div>
+        <button onClick="{{ back }}" style="min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Done</button>
+      </sc-if>
+    </div>
+    </sc-if>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showKhata }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="S4 Khata review" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ back }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+      <div style="font-size:15px;font-weight:600">Khata page 12</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:4px 16px 16px;display:grid;gap:14px;align-content:start;grid-template-columns:minmax(0,1fr)">
+      <div style="border-radius:14px;background:#FBFAF6;background-image:repeating-linear-gradient(#0000 0 27px,#EDE8DA 27px 28px),linear-gradient(90deg,#0000 0 36px,rgba(180,60,50,.3) 36px 37px,#0000 37px);padding:12px 12px 12px 46px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)">
+        <div style="font-size:11px;color:#AEAEB2;margin-bottom:4px;margin-left:-34px">Original photo · tap a row below to trace</div>
+        <sc-for list="{{ khataRows }}" as="k" hint-placeholder-count="6">
+          <div style="display:flex;justify-content:space-between;height:28px;align-items:center;padding:0 6px;transform:rotate(-.4deg);border-radius:4px;background:{{ k.photoBg }};outline:{{ k.photoOutline }}">
+            <div style="font-size:13px;color:#4a463c">{{ k.ta }} <span style="font-size:10px;color:#9a968a">{{ k.date }}</span></div>
+            <div style="font-size:13px;color:#4a463c;font-weight:600">{{ k.amtRaw }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:13px;color:#77777C;text-align:center">12 entries read · <b style="color:#28934E">9 accepted</b> · <b style="color:#C97F0E">3 to confirm</b></div>
+      <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+        <sc-for list="{{ khataRows }}" as="k" hint-placeholder-count="6">
+          <button onClick="{{ k.tap }}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 18px;border:none;border-bottom:1px solid #F0F0F2;background:{{ k.rowBg }};min-height:52px;text-align:left;font-family:inherit;cursor:pointer">
+            <div>
+              <div style="font-size:14px;font-weight:500">{{ k.party }} <span style="color:#AEAEB2;font-weight:400;font-size:12px">{{ k.ta }}</span></div>
+              <div style="font-size:12px;color:#AEAEB2;margin-top:1px">{{ k.date }} · balance {{ k.bal }}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+              <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums">{{ k.amt }}</div>
+              <div style="font-size:11px;font-weight:600;color:{{ k.chipFg }}">{{ k.chip }}</div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="padding:12px 20px 22px;flex-shrink:0">
+      <button onClick="{{ openQueue }}" style="width:100%;min-height:52px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Send 3 to confirm queue · உறுதி வரிசை</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showQueue }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="S5 Confirm queue" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ back }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+      <div style="flex:1;font-size:15px;font-weight:600">Confirm</div>
+      <div style="font-weight:600;color:#AEAEB2;font-size:13px;padding-right:8px;font-variant-numeric:tabular-nums">{{ qCount }}</div>
+    </div>
+    <div style="height:3px;background:#E9E9EB;flex-shrink:0;margin:0 20px;border-radius:2px;overflow:hidden"><div style="height:100%;background:#111113;transition:width .3s;width:{{ qPct }}"></div></div>
+    <sc-if value="{{ qActive }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;overflow-y:auto;min-height:0;padding:20px;display:grid;gap:16px;align-content:center;grid-template-columns:minmax(0,1fr)">
+        <div style="font-size:12px;color:#AEAEB2;text-align:center">{{ qSrc }}</div>
+        <div style="border-radius:14px;background:#FBFAF6;background-image:repeating-linear-gradient(#0000 0 27px,#EDE8DA 27px 28px);padding:22px 16px;text-align:center;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)">
+          <div style="font-size:19px;color:#4a463c;transform:rotate(-.6deg)">{{ qCrop }}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#AEAEB2">{{ qField }} · {{ qConf }} confidence</div>
+          <div style="font-weight:700;font-size:38px;margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:-1.5px">{{ qValue }}</div>
+        </div>
+        <sc-if value="{{ qAlt }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;justify-content:center">
+            <sc-for list="{{ qAltOptions }}" as="o" hint-placeholder-count="3">
+              <button onClick="{{ o.pick }}" style="min-height:46px;border:none;background:#fff;color:#111113;border-radius:999px;padding:0 18px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;font-variant-numeric:tabular-nums">{{ o.v }}</button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <div style="padding:12px 20px 22px;flex-shrink:0;display:flex;gap:8px">
+        <button onClick="{{ correctQ }}" style="flex:1;min-height:52px;border:none;background:#EEEEF0;color:#111113;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Correct</button>
+        <button onClick="{{ confirmQ }}" style="flex:1.5;min-height:52px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Confirm · சரி</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ qDone }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
+        <div style="width:64px;height:64px;border-radius:50%;background:#111113;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;animation:rise .4s ease both">✓</div>
+        <div style="font-weight:700;font-size:22px;letter-spacing:-.6px">All 7 confirmed</div>
+        <div style="font-size:14px;color:#77777C;line-height:1.6">Khata page 12 saved to the ledger.<br>கணக்கு சேமிக்கப்பட்டது.</div>
+        <button onClick="{{ goShopBack }}" style="min-height:48px;border:none;background:#EEEEF0;color:#111113;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;padding:0 28px;margin-top:10px">Done</button>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showGst }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="S7 GST detail" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ back }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+      <div style="font-size:15px;font-weight:600">GST — July 2026</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:4px 16px 16px;display:grid;gap:14px;align-content:start;grid-template-columns:minmax(0,1fr)">
+      <div style="background:#fff;border-radius:18px;padding:20px 18px">
+        <div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:20px;height:20px;border-radius:50%;background:#111113;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center">✓</div><div style="width:1.5px;flex:1;background:#F0F0F2"></div></div><div style="padding-bottom:18px"><div style="font-size:14px;font-weight:600">Compiled — 1 Aug, 6:02 AM</div><div style="font-size:12px;color:#AEAEB2;margin-top:2px">214 sales + 38 purchases aggregated</div></div></div>
+        <div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:20px;height:20px;border-radius:50%;background:#111113;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center">✓</div><div style="width:1.5px;flex:1;background:#F0F0F2"></div></div><div style="padding-bottom:18px"><div style="font-size:14px;font-weight:600">Summary PDF + CSV ready</div><div style="font-size:12px;color:#AEAEB2;margin-top:2px">B2B / B2C split · CGST/SGST totals</div></div></div>
+        <div style="display:flex;gap:14px"><div style="width:20px;height:20px;border-radius:50%;background:#28934E;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✓</div><div><div style="font-size:14px;font-weight:600">Sent to CA (Krishnan &amp; Co) — 6:05 AM</div><div style="font-size:12px;color:#AEAEB2;margin-top:2px">Email + WhatsApp</div></div></div>
+      </div>
+      <div style="background:#fff;border-radius:18px;padding:18px">
+        <div style="display:grid;gap:0;font-size:14px">
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F2"><span style="color:#77777C">Outward supplies</span><span style="font-variant-numeric:tabular-nums;font-weight:600">₹11,84,300</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0 7px 14px;border-bottom:1px solid #F0F0F2"><span style="color:#AEAEB2;font-size:12px">B2B (registered)</span><span style="font-variant-numeric:tabular-nums;font-size:12px;color:#77777C">₹7,10,600</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0 7px 14px;border-bottom:1px solid #F0F0F2"><span style="color:#AEAEB2;font-size:12px">B2C (walk-in)</span><span style="font-variant-numeric:tabular-nums;font-size:12px;color:#77777C">₹4,73,700</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0F0F2"><span style="color:#77777C">Inward supplies</span><span style="font-variant-numeric:tabular-nums;font-weight:600">₹8,42,150</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0"><span style="color:#77777C">Net tax payable (est.)</span><span style="font-variant-numeric:tabular-nums;font-weight:700">₹61,590</span></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <button onClick="{{ openGstDoc }}" style="background:#fff;border:none;border-radius:18px;padding:16px;text-align:left;font-family:inherit;cursor:pointer;display:grid;gap:2px;justify-items:start">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#77777C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          <div style="font-size:13px;font-weight:600;margin-top:8px">Summary PDF</div>
+          <div style="font-size:11px;color:#AEAEB2">2 pages · CA-ready · Preview ›</div>
+        </button>
+        <div style="background:#fff;border-radius:18px;padding:16px;display:grid;gap:2px;justify-items:start">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#77777C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+          <div style="font-size:13px;font-weight:600;margin-top:8px">Registers CSV</div>
+          <div style="font-size:11px;color:#AEAEB2">252 rows · sales + purchases</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#AEAEB2;text-align:center;line-height:1.6">CA-ready summary. Galla does not file your GST — your CA does.</div>
+    </div>
+    <div style="padding:12px 20px 22px;flex-shrink:0;display:flex;gap:8px">
+      <button style="flex:1;min-height:50px;border:none;background:#EEEEF0;color:#111113;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Download</button>
+      <button style="flex:1;min-height:50px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Share · பகிர்</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showAddItem }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Add item" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ back }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+      <div style="font-size:15px;font-weight:600">Add item</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:4px 16px 16px;display:grid;gap:14px;align-content:start;grid-template-columns:minmax(0,1fr)">
+      <button style="display:flex;align-items:center;justify-content:center;gap:10px;min-height:60px;border:none;background:#fff;border-radius:18px;font-family:inherit;font-size:14px;font-weight:600;color:#0A6BE0;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A6BE0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Photograph label — agent fills the form</button>
+      <div style="background:#fff;border-radius:18px;padding:18px;display:grid;gap:14px">
+        <div style="display:grid;gap:6px"><div style="font-size:12px;font-weight:600;color:#77777C">Item name · பெயர்</div><input value="{{ niName }}" onChange="{{ setNiName }}" placeholder="e.g. Finolex wire 1.5 sq mm" style="min-height:46px;border:none;background:#F4F4F6;border-radius:12px;padding:0 14px;font-size:15px;font-family:inherit;width:100%;box-sizing:border-box"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:grid;gap:6px"><div style="font-size:12px;font-weight:600;color:#77777C">Opening stock</div><input value="{{ niStock }}" onChange="{{ setNiStock }}" placeholder="0" inputMode="numeric" style="min-height:46px;border:none;background:#F4F4F6;border-radius:12px;padding:0 14px;font-size:15px;font-family:inherit;width:100%;box-sizing:border-box"></div>
+          <div style="display:grid;gap:6px"><div style="font-size:12px;font-weight:600;color:#77777C">Unit</div>
+            <div style="display:flex;gap:6px">
+              <sc-for list="{{ unitOptions }}" as="u" hint-placeholder-count="3">
+                <button onClick="{{ u.pick }}" style="flex:1;min-height:46px;border:none;background:{{ u.bg }};color:{{ u.fg }};border-radius:12px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">{{ u.v }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:grid;gap:6px"><div style="font-size:12px;font-weight:600;color:#77777C">Selling price ₹</div><input value="{{ niPrice }}" onChange="{{ setNiPrice }}" placeholder="0" inputMode="numeric" style="min-height:46px;border:none;background:#F4F4F6;border-radius:12px;padding:0 14px;font-size:15px;font-family:inherit;width:100%;box-sizing:border-box"></div>
+          <div style="display:grid;gap:6px"><div style="font-size:12px;font-weight:600;color:#77777C">Low-stock alert</div><input value="{{ niAlert }}" onChange="{{ setNiAlert }}" placeholder="10" inputMode="numeric" style="min-height:46px;border:none;background:#F4F4F6;border-radius:12px;padding:0 14px;font-size:15px;font-family:inherit;width:100%;box-sizing:border-box"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 20px 22px;flex-shrink:0">
+      <button onClick="{{ saveNewItem }}" style="width:100%;min-height:52px;border:none;background:{{ niSaveBg }};color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Add to inventory · சேமி</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showRecord }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Voice capture" style="display:flex;flex-direction:column;height:100%">
+    <div style="display:flex;align-items:center;padding:8px 12px;flex-shrink:0">
+      <button onClick="{{ cancelRecord }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:22px;color:#0A6BE0;cursor:pointer;font-family:inherit;text-align:left">‹</button>
+      <div style="font-size:15px;font-weight:600">Voice note</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;min-height:0">
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:#D23B2E;animation:blink 1s ease infinite"></span><span style="font-weight:700;font-size:34px;font-variant-numeric:tabular-nums;letter-spacing:-1px">{{ recTime }}</span></div>
+      <div style="display:flex;align-items:center;gap:3px;height:56px;width:100%;justify-content:center">
+        <sc-for list="{{ recBars }}" as="b" hint-placeholder-count="20">
+          <div style="width:3px;border-radius:2px;background:#111113;height:{{ b.h }}px;animation:wv .9s ease-in-out {{ b.d }}s infinite"></div>
+        </sc-for>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:17px;font-weight:600">பேசுங்கள்… கேட்கிறேன்</div>
+        <div style="font-size:13px;color:#77777C;margin-top:6px;line-height:1.6">Speak the order or note — Tamil or English.<br>The agents take it from here.</div>
+      </div>
+    </div>
+    <div style="padding:12px 20px 30px;flex-shrink:0;display:grid;gap:10px;justify-items:center">
+      <button onClick="{{ stopRecord }}" style="width:68px;height:68px;border:none;background:#D23B2E;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center"><span style="width:20px;height:20px;border-radius:5px;background:#fff"></span></button>
+      <div style="font-size:12px;color:#AEAEB2">Tap to stop</div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showCamera }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Camera confirm" style="display:flex;flex-direction:column;height:100%;background:#111113">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;flex-shrink:0">
+      <button onClick="{{ closeCamera }}" style="min-width:48px;min-height:48px;border:none;background:none;font-size:20px;color:#fff;cursor:pointer;font-family:inherit;text-align:left">✕</button>
+      <div style="text-align:center">
+        <div style="font-size:15px;font-weight:600;color:#fff">{{ camTitle }}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:1px">{{ camSub }}</div>
+      </div>
+      <div style="width:48px"></div>
+    </div>
+    <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 32px">
+      <div style="width:100%;border-radius:14px;background:#FBFAF6;background-image:repeating-linear-gradient(#0000 0 26px,#EDE8DA 26px 27px);padding:24px 20px;transform:rotate({{ camRot }}deg)">
+        <sc-for list="{{ camLines }}" as="cl" hint-placeholder-count="3">
+          <div style="font-size:14px;color:#4a463c;line-height:26px">{{ cl.t }}</div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="padding:16px 20px 28px;flex-shrink:0;display:flex;gap:8px">
+      <button onClick="{{ retake }}" style="flex:1;min-height:52px;border:none;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Retake</button>
+      <button onClick="{{ usePhoto }}" style="flex:1.5;min-height:52px;border:none;background:#fff;color:#111113;border-radius:999px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Use this photo</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ editorOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeEditor }}" style="position:absolute;inset:0;background:rgba(17,17,19,.35);display:flex;flex-direction:column;justify-content:flex-end;z-index:12">
+    <div onClick="{{ eatClick }}" data-screen-label="Line editor" style="background:#F9F9FA;border-radius:22px 22px 0 0;padding:18px 16px 24px;animation:rise .3s ease both;max-height:86%;overflow-y:auto">
+      <div style="width:36px;height:4px;border-radius:2px;background:#D6D6DA;margin:0 auto 14px"></div>
+      <div style="font-weight:700;font-size:17px;letter-spacing:-.3px;text-align:center">{{ editorTitle }}</div>
+      <div style="font-size:12px;color:#AEAEB2;margin:4px 0 14px;text-align:center">{{ editorSub }}</div>
+      <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+        <sc-for list="{{ editLines }}" as="l" hint-placeholder-count="4">
+          <div style="display:grid;gap:10px;padding:14px 16px;border-bottom:1px solid #F0F0F2">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <div style="font-size:14px;font-weight:500;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.n }}</div>
+              <sc-if value="{{ l.removable }}" hint-placeholder-val="{{ false }}"><button onClick="{{ l.remove }}" style="width:30px;height:30px;border:none;background:#EEEEF0;color:#77777C;border-radius:50%;font-size:13px;cursor:pointer;font-family:inherit;flex-shrink:0">✕</button></sc-if>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <div style="display:flex;align-items:center;background:#F4F4F6;border-radius:999px">
+                <button onClick="{{ l.dec }}" style="width:40px;min-height:40px;border:none;background:none;font-size:18px;color:#111113;cursor:pointer;font-family:inherit">−</button>
+                <div style="width:36px;text-align:center;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">{{ l.qty }}</div>
+                <button onClick="{{ l.inc }}" style="width:40px;min-height:40px;border:none;background:none;font-size:18px;color:#111113;cursor:pointer;font-family:inherit">＋</button>
+              </div>
+              <button onClick="{{ l.editRate }}" style="min-height:40px;border:none;background:#F4F4F6;border-radius:999px;padding:0 14px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;font-variant-numeric:tabular-nums;color:#0A6BE0">@ {{ l.rate }}</button>
+              <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;flex:1;text-align:right">{{ l.amt }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ keypadOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff;border-radius:18px;padding:16px;margin-top:10px;animation:rise .25s ease both">
+          <div style="font-size:12px;color:#77777C;text-align:center">{{ kpLabel }}</div>
+          <div style="font-weight:700;font-size:30px;text-align:center;margin:4px 0 12px;font-variant-numeric:tabular-nums;letter-spacing:-.5px">₹{{ kpValue }}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            <sc-for list="{{ kpKeys }}" as="k" hint-placeholder-count="12">
+              <button onClick="{{ k.tap }}" style="min-height:48px;border:none;background:{{ k.bg }};color:{{ k.fg }};border-radius:12px;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">{{ k.l }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px">
+        <div style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;padding-left:4px">{{ editorTotal }}</div>
+        <button onClick="{{ closeEditor }}" style="min-height:48px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;padding:0 28px">Done</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ docOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeDoc }}" style="position:absolute;inset:0;background:rgba(17,17,19,.35);display:flex;flex-direction:column;justify-content:flex-end;z-index:12">
+    <div onClick="{{ eatClick }}" data-screen-label="Document preview" style="background:#F9F9FA;border-radius:22px 22px 0 0;padding:18px 16px 26px;animation:rise .3s ease both;max-height:86%;overflow-y:auto">
+      <div style="width:36px;height:4px;border-radius:2px;background:#D6D6DA;margin:0 auto 14px"></div>
+      <div style="font-weight:700;font-size:17px;letter-spacing:-.3px;text-align:center">{{ docTitle }}</div>
+      <div style="font-size:12px;color:#AEAEB2;margin:4px 0 14px;text-align:center">{{ docMeta }}</div>
+      <div style="background:#fff;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);padding:20px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding-bottom:10px;border-bottom:1px solid #F0F0F2">
+          <div style="font-size:13px;font-weight:700">Murugan Hardware</div>
+          <div style="font-size:10px;color:#AEAEB2">GSTIN 33AAMPM8712K1ZQ</div>
+        </div>
+        <div style="display:grid;padding-top:6px">
+          <sc-for list="{{ docLines }}" as="dl" hint-placeholder-count="5">
+            <div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #F7F7F5">
+              <div style="font-size:12px;color:{{ dl.c }};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ dl.n }}</div>
+              <div style="font-size:12px;font-variant-numeric:tabular-nums;color:{{ dl.c }}">{{ dl.a }}</div>
+            </div>
+          </sc-for>
+          <div style="display:flex;justify-content:space-between;padding:10px 0 2px">
+            <div style="font-size:13px;font-weight:700">{{ docTotalLabel }}</div>
+            <div style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums">{{ docTotal }}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#AEAEB2;margin-top:12px;text-align:center">{{ docFoot }}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button style="flex:1;min-height:48px;border:none;background:#EEEEF0;color:#111113;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Download</button>
+        <button style="flex:1.4;min-height:48px;border:none;background:#111113;color:#fff;border-radius:999px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer">Share on WhatsApp</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ demoOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeDemo }}" style="position:absolute;inset:0;background:rgba(17,17,19,.35);display:flex;flex-direction:column;justify-content:flex-end;z-index:12">
+    <div onClick="{{ eatClick }}" data-screen-label="Demo composer" style="background:#F9F9FA;border-radius:22px 22px 0 0;padding:18px 16px 26px;animation:rise .3s ease both;max-height:86%;overflow-y:auto">
+      <div style="width:36px;height:4px;border-radius:2px;background:#D6D6DA;margin:0 auto 14px"></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:#C97F0E"></span><div style="font-weight:700;font-size:17px;letter-spacing:-.3px">Demo controls</div></div>
+      <div style="font-size:12px;color:#AEAEB2;margin:4px 0 14px;text-align:center">For the presentation — only you see this.</div>
+      <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+        <sc-for list="{{ demoRows }}" as="d" hint-placeholder-count="6">
+          <button onClick="{{ d.go }}" style="display:flex;justify-content:space-between;gap:10px;align-items:center;background:none;border:none;border-bottom:1px solid #F0F0F2;padding:14px 18px;min-height:56px;text-align:left;font-family:inherit;cursor:pointer;width:100%">
+            <div style="min-width:0">
+              <div style="font-size:14px;font-weight:600">{{ d.t }}</div>
+              <div style="font-size:12px;color:#77777C;margin-top:1px">{{ d.s }}</div>
+            </div>
+            <div style="color:#C7C7CC;font-size:17px">›</div>
+          </button>
+        </sc-for>
+      </div>
+      <button onClick="{{ closeDemo }}" style="width:100%;min-height:48px;border:none;background:none;color:#77777C;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:10px">Close</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ scanOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeScan }}" style="position:absolute;inset:0;background:rgba(17,17,19,.35);display:flex;flex-direction:column;justify-content:flex-end;z-index:10">
+    <div data-screen-label="Scan chooser" style="background:#F9F9FA;border-radius:22px 22px 0 0;padding:18px 16px 26px;animation:rise .3s ease both">
+      <div style="width:36px;height:4px;border-radius:2px;background:#D6D6DA;margin:0 auto 16px"></div>
+      <div style="font-weight:700;font-size:17px;letter-spacing:-.3px;text-align:center">What are you photographing?</div>
+      <div style="font-size:12px;color:#AEAEB2;margin:4px 0 16px;text-align:center">எதை படம் எடுக்கிறீர்கள்?</div>
+      <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+        <sc-for list="{{ scanOptions }}" as="o" hint-placeholder-count="3">
+          <button onClick="{{ o.pick }}" style="display:flex;gap:14px;align-items:center;background:none;border:none;border-bottom:1px solid #F0F0F2;padding:15px 18px;min-height:60px;text-align:left;font-family:inherit;cursor:pointer;width:100%">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:600">{{ o.title }}</div>
+              <div style="font-size:12px;color:#77777C;margin-top:2px">{{ o.sub }}</div>
+            </div>
+            <div style="color:#C7C7CC;font-size:17px">›</div>
+          </button>
+        </sc-for>
+      </div>
+      <button onClick="{{ closeScan }}" style="width:100%;min-height:48px;border:none;background:none;color:#77777C;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:10px">Cancel</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ activityOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeActivity }}" style="position:absolute;inset:0;background:rgba(17,17,19,.35);display:flex;flex-direction:column;justify-content:flex-end;z-index:10">
+    <div data-screen-label="Agent activity" style="background:#F9F9FA;border-radius:22px 22px 0 0;padding:18px 16px 26px;animation:rise .3s ease both">
+      <div style="width:36px;height:4px;border-radius:2px;background:#D6D6DA;margin:0 auto 16px"></div>
+      <div style="font-weight:700;font-size:17px;letter-spacing:-.3px;text-align:center;margin-bottom:14px">Agent activity — order #1043</div>
+      <div style="background:#fff;border-radius:18px;overflow:hidden;min-height:fit-content">
+        <sc-for list="{{ activityRows }}" as="ag" hint-placeholder-count="4">
+          <div style="display:flex;gap:12px;border-bottom:1px solid #F0F0F2;padding:13px 18px;align-items:flex-start">
+            <div style="font-size:13px;flex-shrink:0;width:18px;text-align:center;color:{{ ag.mc }}">{{ ag.mark }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between"><div style="font-size:13px;font-weight:600">{{ ag.name }}</div><div style="font-size:11px;color:#AEAEB2;font-variant-numeric:tabular-nums">{{ ag.time }}</div></div>
+              <div style="font-size:12px;color:#77777C;margin-top:2px;line-height:1.5">{{ ag.out }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <button onClick="{{ closeActivity }}" style="width:100%;min-height:48px;border:none;background:none;color:#77777C;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:10px">Close</button>
+    </div>
+  </div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844},&quot;traceSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;unit&quot;:&quot;×&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Demo&quot;},&quot;demoMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo&quot;},&quot;startTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;counter&quot;,&quot;options&quot;:[&quot;counter&quot;,&quot;approvals&quot;,&quot;inventory&quot;,&quot;shop&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo&quot;}}">
+class Component extends DCLogic {
+  state = { tab:'counter', screen:null, apprId:'selvam', traceStep:0, decided:{}, activityOpen:false, orderOpen:false, invSaved:false, invFixed:false, khataSel:-1, qIndex:2, qAlt:false, demoOverride:null,
+    invQuery:'', extraItems:[], addedItem:null, niName:'', niStock:'', niPrice:'', niAlert:'', niUnit:'pcs', scanOpen:false,
+    offline:false, uploadError:false, uploading:false, emptyState:false, demoOpen:false, editorMode:null, keypad:null, docOpen:null, subChoice:null, invReading:false, invLines:null, modLines:{}, recSecs:0, camTarget:null, camRot:false, toast:null };
+  componentDidMount(){
+    const t = this.props.startTab;
+    if(t && t!=='counter') this.setState({tab:t});
+    this.playTrace();
+  }
+  playTrace(){
+    const sp = this.props.traceSpeed ?? 1;
+    (this.timers||[]).forEach(clearTimeout);
+    this.setState({traceStep:0});
+    this.timers = [500,1400,2500,3700].map((ms,i)=>setTimeout(()=>this.setState({traceStep:i+1}), ms/sp));
+  }
+  componentWillUnmount(){ (this.timers||[]).forEach(clearTimeout); clearInterval(this.recT); clearTimeout(this.rdT); clearTimeout(this.upT); clearTimeout(this.toastT); }
+  fmt(n){ n=Math.round(n); const s=String(n); if(s.length<=3) return '₹'+s; const last=s.slice(-3); let rest=s.slice(0,-3), out=''; while(rest.length>2){ out=','+rest.slice(-2)+out; rest=rest.slice(0,-2); } return '₹'+rest+out+','+last; }
+  defInvLines(){ return [
+    {n:'GI Pipe ¾″', qty:25, unit:'pcs', rate:610, conf:'98%'},
+    {n:'Asian Paints Primer 1L', qty:12, unit:'tins', rate:298, conf:'96%'},
+    {n:'PVC solvent 100ml', qty:30, unit:'pcs', rate:46, conf:'72%'},
+    {n:'M-Seal 25g', qty:40, unit:'pcs', rate:58, conf:'91%'}]; }
+  invState(){ return this.state.invLines || this.defInvLines(); }
+  startReading(){ this.setState({screen:'invoice', invReading:true, activityOpen:false, scanOpen:false}); clearTimeout(this.rdT); this.rdT=setTimeout(()=>this.setState({invReading:false}), 1700); }
+  showToast(msg){ clearTimeout(this.toastT); this.setState({toast:msg}); this.toastT=setTimeout(()=>this.setState({toast:null}), 3200); }
+  openRec(){ this.setState({screen:'record', recSecs:0}); clearInterval(this.recT); this.recT=setInterval(()=>this.setState({recSecs:this.state.recSecs+1}), 1000); }
+  stopRec(){ clearInterval(this.recT); this.setState({screen:null, tab:'counter', emptyState:false}); this.showToast('Voice note heard ✓ — agents working'); this.playTrace(); }
+  orderLines(items){ const s=this.state; if(s.modLines[s.apprId]) return s.modLines[s.apprId];
+    return items.map(it=>({n:it.n, qty:parseInt(it.q,10)||1, unit:(it.q.split(' ')[1]||'pcs'), rate:parseInt(it.r.replace(/[₹,]/g,''),10)||0})); }
+  setOrderLines(lines){ this.setState({modLines:{...this.state.modLines,[this.state.apprId]:lines}}); }
+  resetDemo(){ clearInterval(this.recT); this.setState({tab:'counter',screen:null,apprId:'selvam',decided:{},orderOpen:false,invSaved:false,invFixed:false,khataSel:-1,qIndex:2,qAlt:false,offline:false,uploadError:false,uploading:false,emptyState:false,demoOpen:false,editorMode:null,keypad:null,docOpen:null,subChoice:null,invReading:false,invLines:null,modLines:{},toast:null}); this.playTrace(); }
+  approvals(){
+    return {
+      kumar:{name:'Kumar Constructions',tamil:'குமார்',amount:'₹18,650',v:'green',
+        title:'Approved — within limit',
+        reason:'Kumar owes only ₹12,000 of his ₹80,000 limit and has paid within 9 days for 6 months — safe to approve.',
+        reasonTa:'₹80,000 வரம்பில் ₹12,000 மட்டும் பாக்கி — அனுமதிக்கலாம்.',
+        bg:'#EAF6EE',fg:'#28934E',
+        items:[{n:'Asian Paints Primer 1L',q:'8 tins',r:'₹310',a:'₹2,480'},{n:'CPVC pipe ¾″ × 10 ft',q:'20 lengths',r:'₹196',a:'₹3,920'},{n:'GI Pipe ¾″',q:'12 pcs',r:'₹640',a:'₹7,680'},{n:'M-Seal 25g',q:'40 pcs',r:'₹58',a:'₹2,320'}],
+        sub:'₹16,400',gst:'₹2,250',
+        btns:[{l:'Approve order',bg:'#111113',fg:'#fff',h:54,fs:15,done:'Order approved · quotation sent to Kumar ✓'},
+              {l:'Ask part-payment',bg:'#EEEEF0',fg:'#111113',h:48,fs:14,done:'Part-payment requested from Kumar ✓'},
+              {l:'Modify order',bg:'none',fg:'#0A6BE0',h:44,fs:14,done:null}]},
+      selvam:{name:'Selvam',tamil:'செல்வம்',amount:'₹24,380',v:'amber',
+        title:'Part-payment suggested',
+        reason:'Selvam owes ₹87,400 of his ₹95,000 limit and last paid 34 days ago — suggest ₹15,000 advance.',
+        reasonTa:'₹95,000 வரம்பில் ₹87,400 பாக்கி; கடைசி கட்டணம் 34 நாட்கள் முன்பு — ₹15,000 முன்பணம் பரிந்துரை.',
+        bg:'#FBF2E0',fg:'#9c6408',
+        items:[{n:'Ramco Supergrade 53 OPC 50kg',q:'20 bags',r:'₹435',a:'₹8,700'},{n:'CPVC pipe ¾″ × 10 ft',q:'10 lengths',r:'₹196',a:'₹1,960'},{n:'GI Pipe ¾″',q:'15 pcs',r:'₹640',a:'₹9,600'},{n:'Door hinge 4″ SS',q:'12 pcs',r:'₹85',a:'₹1,020'}],
+        sub:'₹21,280',gst:'₹3,100',
+        btns:[{l:'Ask ₹15,000 advance',bg:'#111113',fg:'#fff',h:54,fs:15,done:'Advance of ₹15,000 requested · quotation held ✓'},
+              {l:'Approve full credit anyway',bg:'#EEEEF0',fg:'#111113',h:48,fs:14,done:'Approved on full credit · quotation sent ✓'},
+              {l:'Modify order',bg:'none',fg:'#0A6BE0',h:44,fs:14,done:null}]},
+      ravi:{name:'Ravi Builders',tamil:'ரவி',amount:'₹31,200',v:'red',
+        title:'Escalated — your decision',
+        reason:'Ravi is ₹12,500 over his ₹1,00,000 limit and 61 days overdue — do not extend more credit without your say.',
+        reasonTa:'ரவி வரம்பை ₹12,500 தாண்டி, 61 நாட்கள் தாமதம் — உங்கள் முடிவு தேவை.',
+        bg:'#FCEDEB',fg:'#D23B2E',
+        items:[{n:'Ramco Supergrade 53 OPC 50kg',q:'40 bags',r:'₹435',a:'₹17,400'},{n:'TMT bar 12mm',q:'18 pcs',r:'₹510',a:'₹9,180'}],
+        sub:'₹26,580',gst:'₹4,620',
+        btns:[{l:'Decline order',bg:'#D23B2E',fg:'#fff',h:54,fs:15,done:'Order declined · Ravi notified politely ✓'},
+              {l:'Ask ₹50,000 advance first',bg:'#EEEEF0',fg:'#111113',h:48,fs:14,done:'₹50,000 advance requested from Ravi ✓'},
+              {l:'Approve anyway (over limit)',bg:'none',fg:'#77777C',h:44,fs:14,done:'Approved over limit · quotation sent ✓'}]}
+    };
+  }
+  inventory(){
+    return [
+      {n:'Ramco Supergrade 53 OPC 50kg', cat:'Cement', price:'₹435', unit:'bag', stock:12, low:true},
+      {n:'GI Pipe ¾″', cat:'Plumbing', price:'₹640', unit:'pc', stock:65, low:false},
+      {n:'CPVC pipe ¾″ × 10 ft', cat:'Plumbing', price:'₹196', unit:'length', stock:88, low:false},
+      {n:'CPVC elbow ¾″', cat:'Plumbing', price:'₹18', unit:'pc', stock:6, low:true},
+      {n:'Asian Paints Primer 1L', cat:'Paint', price:'₹310', unit:'tin', stock:9, low:true},
+      {n:'M-Seal 25g', cat:'Adhesives', price:'₹58', unit:'pc', stock:14, low:true},
+      {n:'TMT bar 12mm', cat:'Steel', price:'₹510', unit:'pc', stock:230, low:false},
+      {n:'Door hinge 4″ SS', cat:'Hardware', price:'₹85', unit:'pc', stock:96, low:false},
+      {n:'PVC solvent 100ml', cat:'Adhesives', price:'₹46', unit:'pc', stock:33, low:false},
+      {n:'Finolex wire 1.5 sq mm 90m', cat:'Electrical', price:'₹1,420', unit:'coil', stock:21, low:false}
+    ];
+  }
+  queueItems(){
+    return [
+      {},{},
+      {src:'From khata page 12 · row 4',crop:'பழனி — 4,250',field:'Amount',value:'₹4,250',conf:'68%',alts:['₹4,250','₹4,230','₹1,250']},
+      {src:'From khata page 12 · row 7',crop:'ராஜா மேசன் — பாக்கி 12,300',field:'Balance',value:'₹12,300',conf:'71%',alts:['₹12,300','₹12,800','₹2,300']},
+      {src:'From khata page 12 · row 9',crop:'14-3-24',field:'Date',value:'14-03-2024',conf:'74%',alts:['14-03-2024','14-08-2024','19-03-2024']},
+      {src:'From supplier bill #2871 · line 3',crop:'PVC solvent 100ml … 30',field:'Quantity',value:'30 pcs',conf:'72%',alts:['30 pcs','3 pcs','36 pcs']},
+      {src:'From khata page 13 · row 2',crop:'கண்ணன் — 8,150',field:'Amount',value:'₹8,150',conf:'69%',alts:['₹8,150','₹8,750','₹3,150']}
+    ];
+  }
+  go(screen){ this.setState({screen, orderOpen:false, activityOpen:false}); }
+  renderVals(){
+    const s = this.state;
+    const demoOn = s.demoOverride ?? (this.props.demoMode ?? true);
+    const A = this.approvals();
+    if(s.subChoice==='accept'){ const sv=A.selvam; A.selvam={...sv, items:[{n:'Dalmia DSP 53 OPC 50kg',q:'20 bags',r:'₹425',a:'₹8,500'},...sv.items.slice(1)], sub:'₹21,080', gst:'₹3,071', amount:'₹24,151'}; }
+    Object.keys(s.modLines).forEach(id=>{ const base=A[id]; if(!base) return; const lines=s.modLines[id];
+      const sub=lines.reduce((t,l)=>t+l.qty*l.rate,0);
+      const baseSub=parseInt(base.sub.replace(/[₹,]/g,''),10), baseGst=parseInt(base.gst.replace(/[₹,]/g,''),10);
+      const gst=Math.round(sub*(baseGst/baseSub));
+      A[id]={...base, items:lines.map(l=>({n:l.n,q:l.qty+' '+l.unit,r:this.fmt(l.rate),a:this.fmt(l.qty*l.rate)})), sub:this.fmt(sub), gst:this.fmt(gst), amount:this.fmt(sub+gst)};
+    });
+    const cur = A[s.apprId] || A.selvam;
+    const step = s.traceStep;
+    const selvamDone = s.decided.selvam;
+    const chipDefs = [{label:'Intake'},{label:'Stock & Pricing'},{label:'Credit Guardian'},{label:'Quotation'}];
+    const styles = {
+      idle:{bg:'#F0F0F2',fg:'#C7C7CC',lc:'#C7C7CC',mark:'·',anim:'none'},
+      active:{bg:'#0A6BE0',fg:'#fff',lc:'#0A6BE0',mark:'…',anim:'gpulse 1.1s ease infinite'},
+      done:{bg:'#111113',fg:'#fff',lc:'#77777C',mark:'✓',anim:'none'},
+      flagged:{bg:'#C97F0E',fg:'#fff',lc:'#9c6408',mark:'!',anim:'none'},
+      waiting:{bg:'#F0F0F2',fg:'#77777C',lc:'#77777C',mark:'⏸',anim:'none'}
+    };
+    const traceChips = chipDefs.map((d,i)=>{
+      let st;
+      if(i<3) st = i<step ? (i===2?'flagged':'done') : (i===step?'active':'idle');
+      else st = selvamDone ? 'done' : (step>=4 ? 'waiting' : (step===3?'active':'idle'));
+      return {label:d.label, ...styles[st], link:i<3, grow: i<3?'1':'0 0 auto', linkBg: i<step? '#111113' : '#E9E9EB'};
+    });
+    const traceLines = [
+      'Listening to the voice note…',
+      'Intake done — matching items to stock…',
+      'Prices applied — checking Selvam’s ledger…',
+      'Flagged — your decision is needed.',
+      'Flagged — your decision is needed.'
+    ];
+    const activityRows = [
+      {name:'Intake', mark:'✓', mc:'#111113', time:'1.8 s', out:'Heard Tamil voice note — matched 4 items to SKUs (1 needed a second look).'},
+      {name:'Stock & Pricing', mark:'✓', mc:'#111113', time:'0.9 s', out:'Ramco 53 short (12 of 20) — suggested Dalmia 53. Contractor prices applied.'},
+      {name:'Credit Guardian', mark:'!', mc:'#C97F0E', time:'1.2 s', out:'₹87,400 of ₹95,000 limit used, last paid 34 days ago — flagged for part-payment.'},
+      {name:'Quotation', mark: selvamDone?'✓':'⏸', mc: selvamDone?'#111113':'#AEAEB2', time:'—', out: selvamDone? 'Quotation #Q-1043 generated and sent.' : 'Waiting for your decision.'}
+    ];
+    const stripe = {green:'#28934E',amber:'#C97F0E',red:'#D23B2E'};
+    const apprList = ['selvam','ravi','kumar'].map(id=>{
+      const p = A[id];
+      return {name:p.name, amount:p.amount, stripe:stripe[p.v], short:p.reason,
+        open:()=>this.setState({apprId:id, screen:'approval', orderOpen:false})};
+    });
+    const aDecided = s.decided[s.apprId];
+    const aButtons = cur.btns.map(b=>({...b,
+      tap:()=> b.done ? this.setState({decided:{...s.decided,[s.apprId]:b.done}}) : this.setState({editorMode:'order', keypad:null})}));
+    const invDef = this.defInvLines();
+    const invLines = this.invState();
+    const invRows = invLines.map((l,i)=>{
+      const edited = l.qty!==invDef[i].qty || l.rate!==invDef[i].rate;
+      const low = i===2 && !s.invFixed;
+      const chip = low? '72% · fix' : (i===2? 'Corrected ✓' : (edited? 'Edited ✓' : invDef[i].conf));
+      const good = chip.endsWith('✓');
+      return {n:l.n, q:l.qty+' '+l.unit, r:this.fmt(l.rate), a:this.fmt(l.qty*l.rate), tax:'18%', chip,
+        chipBg: low? '#FBF2E0' : good? '#EAF6EE' : '#F4F4F6',
+        chipFg: low? '#9c6408' : good? '#28934E' : '#AEAEB2',
+        tap:()=> low? this.setState({invFixed:true, invLines: invLines.map((x,j)=> j===2? {...x, qty:3}:x)}) : this.setState({editorMode:'inv', keypad:null})};
+    });
+    const invTotalN = invLines.reduce((t,l)=>t+l.qty*l.rate,0);
+    const invTaxN = Math.round(invTotalN*18/118);
+    const khataData = [
+      {party:'Palani', ta:'பழனி', date:'14-03-2024', amt:'₹4,250', bal:'₹4,250', low:true},
+      {party:'Raja Mason', ta:'ராஜா மேசன்', date:'02-04-2024', amt:'₹6,800', bal:'₹12,300', low:true},
+      {party:'Kumar Const.', ta:'குமார்', date:'11-04-2024', amt:'₹9,500', bal:'₹0 paid ✓', low:false},
+      {party:'Selvam', ta:'செல்வம்', date:'19-04-2024', amt:'₹22,000', bal:'₹22,000', low:false},
+      {party:'Kannan', ta:'கண்ணன்', date:'03-05-2024', amt:'₹8,150', bal:'₹8,150', low:true},
+      {party:'Murthy Electric', ta:'மூர்த்தி', date:'12-05-2024', amt:'₹3,400', bal:'₹0 paid ✓', low:false}
+    ];
+    const khataRows = khataData.map((k,i)=>({...k, amtRaw:k.amt,
+      photoBg: s.khataSel===i? '#FBF2E0':'transparent',
+      photoOutline: s.khataSel===i? '2px solid #C97F0E':'none',
+      rowBg: s.khataSel===i? '#FBF2E0':'none',
+      chip: k.low? 'Confirm':'✓',
+      chipFg: k.low? '#C97F0E':'#28934E',
+      tap:()=>this.setState({khataSel: s.khataSel===i? -1 : i})
+    }));
+    const Q = this.queueItems();
+    const qi = Math.min(s.qIndex, 6);
+    const q = Q[qi];
+    const qDone = s.qIndex>=7;
+    const qAltOptions = (q.alts||[]).map(v=>({v, pick:()=>this.setState({qIndex:s.qIndex+1, qAlt:false})}));
+    const query = s.invQuery.trim().toLowerCase();
+    const allInv = [...s.extraItems, ...this.inventory()];
+    const invItemsF = query? allInv.filter(v=>(v.n+' '+v.cat).toLowerCase().includes(query)) : allInv;
+    const invItems = invItemsF.map(v=>({...v,
+      stock: v.stock+' '+(v.stock===1?v.unit:v.unit+(v.unit.endsWith('s')?'':'s')),
+      stockColor: v.low? '#D23B2E':'#111113',
+      stockNote: v.low? 'LOW':''
+    }));
+    const rt = Math.floor(s.recSecs/60)+':'+String(s.recSecs%60).padStart(2,'0');
+    const recBars = Array.from({length:26},(_,i)=>({h:12+((i*7)%16), d:((i%5)*0.12).toFixed(2)}));
+    const camMap = {
+      invoice:{title:'Supplier bill', sub:'Purchase Entry will read it', lines:['ஸ்ரீ பாலாஜி ஹார்ட்வேர்','GI Pipe ¾″ × 25 … 610','Primer 1L × 12 … 298','PVC solvent × 30 … 46']},
+      khata:{title:'Khata page', sub:'Handwriting will be digitized', lines:['பழனி … 4,250','ராஜா மேசன் … 12,300','குமார் … 9,500','14-3-24 …']},
+      addItem:{title:'Item label', sub:'The form will be pre-filled', lines:['Finolex FR 1.5 sq mm','90 m coil','MRP ₹1,650']}};
+    const cam = camMap[s.camTarget||'invoice'];
+    const editorOpen = !!s.editorMode; const isInv = s.editorMode==='inv';
+    const rawLines = editorOpen? (isInv? invLines : this.orderLines(cur.items)) : [];
+    const setLines = (ls)=>{ if(isInv) this.setState({invLines:ls}); else this.setOrderLines(ls); };
+    const editLines = rawLines.map((l,i)=>({
+      n:l.n, qty:l.qty, rate:this.fmt(l.rate), amt:this.fmt(l.qty*l.rate),
+      removable: !isInv && rawLines.length>1,
+      dec:()=> setLines(rawLines.map((x,j)=> j===i? {...x, qty:Math.max(1,x.qty-1)}:x)),
+      inc:()=> setLines(rawLines.map((x,j)=> j===i? {...x, qty:x.qty+1}:x)),
+      remove:()=> setLines(rawLines.filter((x,j)=>j!==i)),
+      editRate:()=> this.setState({keypad:{index:i, value:String(l.rate)}})
+    }));
+    const editorTotal = this.fmt(rawLines.reduce((t,l)=>t+l.qty*l.rate,0));
+    const kp = s.keypad;
+    const kpKeys = kp? ['1','2','3','4','5','6','7','8','9','⌫','0','✓'].map(k=>({l:k,
+      bg: k==='✓'? '#111113': k==='⌫'? '#EEEEF0':'#F4F4F6', fg: k==='✓'? '#fff':'#111113',
+      tap:()=>{ if(k==='✓'){ const v=parseInt(kp.value||'0',10)||1; setLines(rawLines.map((x,j)=> j===kp.index? {...x, rate:v}:x)); this.setState({keypad:null}); }
+        else if(k==='⌫') this.setState({keypad:{...kp, value:kp.value.slice(0,-1)}});
+        else if(kp.value.length<6) this.setState({keypad:{...kp, value:kp.value+k}}); }})) : [];
+    const qid = s.screen==='approval'? s.apprId : 'selvam';
+    const qsrc = A[qid];
+    const qIds = {selvam:'#Q-1043', kumar:'#Q-1044', ravi:'#Q-1045'};
+    let docTitle='', docMeta='', docLines=[], docTotal='', docFoot='', docTotalLabel='Total incl. GST';
+    if(s.docOpen==='quote'){
+      docTitle='Quotation '+qIds[qid]; docMeta='Murugan Hardware · for '+qsrc.name+' · 28-08-2026';
+      docLines=qsrc.items.map(it=>({n:it.n+' · '+it.q, a:it.a, c:'#111113'}));
+      docLines.push({n:'GST', a:qsrc.gst, c:'#77777C'});
+      docTotal=qsrc.amount; docFoot='Valid 7 days · UPI murugan@okaxis · '+qIds[qid];
+    } else if(s.docOpen==='gst'){
+      docTitle='GST summary — July 2026'; docMeta='CA-ready · Galla does not file your GST'; docTotalLabel='Net tax payable (est.)';
+      docLines=[{n:'Outward supplies',a:'₹11,84,300',c:'#111113'},{n:'· B2B registered',a:'₹7,10,600',c:'#77777C'},{n:'· B2C walk-in',a:'₹4,73,700',c:'#77777C'},{n:'Inward supplies',a:'₹8,42,150',c:'#111113'}];
+      docTotal='₹61,590'; docFoot='GSTR-1 & 3B workings attached · sent to Krishnan & Co';
+    }
+    const demoRows = [
+      {t:'Send voice note as Selvam', s:'Replays the WhatsApp order', go:()=>{ this.setState({demoOpen:false, tab:'counter', screen:null, emptyState:false}); this.playTrace(); }},
+      {t:'Send a bill photo', s:'Camera confirm → extraction review', go:()=>this.setState({demoOpen:false, camTarget:'invoice', screen:'camera'})},
+      {t: s.uploadError? 'Clear upload failure':'Simulate upload failure', s:'Error card with retry on Counter', go:()=>this.setState({demoOpen:false, uploadError:!s.uploadError, uploading:false, tab:'counter', screen:null})},
+      {t: s.offline? 'Go back online':'Simulate offline', s:'Banner on Counter', go:()=>this.setState({offline:!s.offline, demoOpen:false})},
+      {t: s.emptyState? 'Restore today\u2019s feed':'Show first-run empty state', s:'What a new owner sees', go:()=>this.setState({emptyState:!s.emptyState, demoOpen:false, tab:'counter', screen:null})},
+      {t:'Reset demo', s:'Back to the start of the story', go:()=>this.resetDemo()},
+      {t:'Hide demo chrome', s:'Chip becomes “Owner” — tap it to return', go:()=>this.setState({demoOpen:false, demoOverride:false})}
+    ];
+    const titles = {counter:'Counter', approvals:'Approvals', inventory:'Inventory', shop:'Shop'};
+    const canSave = s.niName.trim().length>0;
+    const unitOptions = ['pcs','bag','box'].map(v=>({v,
+      bg: s.niUnit===v? '#111113':'#F4F4F6', fg: s.niUnit===v? '#fff':'#77777C',
+      pick:()=>this.setState({niUnit:v})}));
+    const tabDefs = [['counter','Counter','◉'],['approvals','Approvals','✓'],['inventory','Inventory','▦'],['shop','Shop','▤']];
+    const tabs = tabDefs.map(([id,label,glyph])=>({label, glyph, badge:id==='approvals',
+      c: s.tab===id? '#111113':'#AEAEB2', go:()=>this.setState({tab:id})}));
+    return {
+      showMain: !s.screen, tabCounter: !s.screen && s.tab==='counter', tabApprovals: !s.screen && s.tab==='approvals',
+      tabInventory: !s.screen && s.tab==='inventory', tabShop: !s.screen && s.tab==='shop',
+      tabs, pageTitle: titles[s.tab],
+      showApproval: s.screen==='approval', showInvoice: s.screen==='invoice', showKhata: s.screen==='khata',
+      showQueue: s.screen==='queue', showGst: s.screen==='gst', showAddItem: s.screen==='addItem',
+      goApprovals:()=>this.setState({tab:'approvals'}), goInventory:()=>this.setState({tab:'inventory'}),
+      back:()=>this.go(null),
+      demoOn, demoOff:!demoOn, toggleDemo:()=>this.setState({demoOverride:!demoOn}),
+      showDemoBar: demoOn && !s.screen && s.tab==='counter' && !s.emptyState,
+      replay:()=>this.playTrace(),
+      waveBars:[6,12,9,15,18,13,7,15,19,11,6,14,17,10,6,12,16,9,13,7,15,18,11,6,10,14,8,6].map(h=>({h})),
+      traceChips, traceLine: traceLines[step], activityRows,
+      activityOpen:s.activityOpen, openActivity:()=>this.setState({activityOpen:true}), closeActivity:()=>this.setState({activityOpen:false}),
+      showDraft: step>=3, showVerdict: step>=4,
+      selvamPending: !selvamDone, selvamDecided: !!selvamDone, selvamDoneText: selvamDone||'',
+      openSelvam:()=>{ this.setState({apprId:'selvam'}); this.go('approval'); },
+      openInvoice:()=>this.startReading(), openKhata:()=>this.go('khata'), openQueue:()=>this.go('queue'),
+      openGst:()=>this.go('gst'), openAddItem:()=>this.go('addItem'),
+      scanOpen:s.scanOpen, openScan:()=>this.setState({scanOpen:true}), closeScan:()=>this.setState({scanOpen:false}),
+      scanOptions:[
+        {title:'Supplier purchase bill', sub:'Printed invoice → stock & payable entry', pick:()=>this.setState({scanOpen:false, camTarget:'invoice', screen:'camera'})},
+        {title:'Khata page / credit slip', sub:'Handwritten ledger → digital entries', pick:()=>this.setState({scanOpen:false, camTarget:'khata', screen:'camera'})},
+        {title:'New item label or barcode', sub:'Agent fills the inventory form', pick:()=>this.setState({scanOpen:false, camTarget:'addItem', screen:'camera'})}
+      ],
+      draftItems: A.selvam.items, draftTotal: A.selvam.amount,
+      subOpen: step>=3 && !s.subChoice, acceptSub:()=>this.setState({subChoice:'accept'}), keepSub:()=>this.setState({subChoice:'keep'}),
+      subNote: s.subChoice==='accept'? 'Switched to Dalmia DSP 53 ✓ — draft updated' : s.subChoice==='keep'? 'Keeping Ramco 53 — 12 bags now, 8 follow tomorrow' : false,
+      apprList, qBadge:(7-Math.min(s.qIndex,7))+' left',
+      aName:cur.name, aTamil:cur.tamil, aAmount:cur.amount, aTitle:cur.title,
+      aReason:cur.reason, aReasonTa:cur.reasonTa, aBg:cur.bg, aFg:cur.fg,
+      aItems:cur.items, aSub:cur.sub, aGst:cur.gst, aButtons,
+      aItemLine: cur.items.length+' items · '+cur.sub+' + GST '+cur.gst,
+      orderOpen:s.orderOpen, orderCaret: s.orderOpen?'▴':'▾', toggleOrder:()=>this.setState({orderOpen:!s.orderOpen}),
+      aPending:!aDecided, aDecided:!!aDecided, aDoneText:aDecided||'',
+      invRows, invPending:!s.invSaved, invSaved:s.invSaved, saveInv:()=>this.setState({invSaved:true}),
+      khataRows,
+      qActive:!qDone, qDone, qCount: qDone? '7 of 7' : (s.qIndex+1)+' of 7', qPct: Math.round(Math.min(s.qIndex,7)/7*100)+'%',
+      qSrc:q.src, qCrop:q.crop, qField:q.field, qValue:q.value, qConf:q.conf,
+      qAlt:s.qAlt, qAltOptions,
+      confirmQ:()=>this.setState({qIndex:s.qIndex+1, qAlt:false}),
+      correctQ:()=>this.setState({qAlt:!s.qAlt}),
+      goShopBack:()=>{ this.setState({tab:'shop'}); this.go(null); },
+      showRecord: s.screen==='record', showCamera: s.screen==='camera',
+      openRecord:()=>this.openRec(), stopRecord:()=>this.stopRec(),
+      cancelRecord:()=>{ clearInterval(this.recT); this.go(null); },
+      recTime:rt, recBars,
+      camTitle:cam.title, camSub:cam.sub, camLines:cam.lines.map(t=>({t})), camRot: s.camRot? '.6':'-.5',
+      retake:()=>this.setState({camRot:!s.camRot}), closeCamera:()=>this.go(null),
+      usePhoto:()=>{ const t=s.camTarget; if(t==='khata') this.go('khata'); else if(t==='addItem') this.go('addItem'); else this.startReading(); },
+      offline:s.offline, uploadError: s.uploading || !!s.uploadError,
+      errTitle: s.uploading? 'Uploading…':'Bill photo didn\u2019t upload', errSub: s.uploading? 'A moment — reconnecting.':'Kept safely on your phone. Nothing lost.', errAction: s.uploading? '':'Retry',
+      retryUpload:()=>{ if(s.uploading) return; this.setState({uploading:true, uploadError:false}); clearTimeout(this.upT); this.upT=setTimeout(()=>{ this.setState({uploading:false}); this.startReading(); }, 1300); },
+      emptyVisible: s.emptyState, feedVisible: !s.emptyState, toast:s.toast,
+      demoOpen:s.demoOpen, openDemo:()=>this.setState({demoOpen:true}), closeDemo:()=>this.setState({demoOpen:false}), demoRows,
+      editorOpen, editorTitle: isInv? 'Edit bill lines':'Modify order', editorSub: isInv? 'Fix what the agent misread':'Changes update the quotation', editLines, editorTotal,
+      closeEditor:()=>this.setState({editorMode:null, keypad:null}), eatClick:(e)=>e.stopPropagation(),
+      keypadOpen: !!kp, kpValue: kp? (kp.value||'0'):'0', kpLabel:'New rate per unit', kpKeys,
+      docOpen: !!s.docOpen, docTitle, docMeta, docLines, docTotal, docTotalLabel, docFoot,
+      openQuoteDoc:()=>this.setState({docOpen:'quote'}), openGstDoc:()=>this.setState({docOpen:'gst'}), closeDoc:()=>this.setState({docOpen:null}),
+      invReading: s.invReading, invReady: !s.invReading,
+      invTotal:this.fmt(invTotalN), invDelta:'GI Pipe ¾″ 40 → '+(40+invLines[0].qty)+' · incl. GST '+this.fmt(invTaxN),
+      invQuery:s.invQuery, setQuery:(e)=>this.setState({invQuery:e.target.value}),
+      invItems, invEmpty: invItems.length===0, addedItem:s.addedItem,
+      niName:s.niName, setNiName:(e)=>this.setState({niName:e.target.value}),
+      niStock:s.niStock, setNiStock:(e)=>this.setState({niStock:e.target.value}),
+      niPrice:s.niPrice, setNiPrice:(e)=>this.setState({niPrice:e.target.value}),
+      niAlert:s.niAlert, setNiAlert:(e)=>this.setState({niAlert:e.target.value}),
+      unitOptions, niSaveBg: canSave? '#111113':'#C7C7CC',
+      saveNewItem:()=>{
+        if(!canSave) return;
+        const item = {n:s.niName.trim(), cat:'New', price:'₹'+(s.niPrice||'0'), unit:s.niUnit==='pcs'?'pc':s.niUnit, stock:parseInt(s.niStock||'0',10), low:false};
+        this.setState({extraItems:[item,...s.extraItems], addedItem:item.n, tab:'inventory', screen:null, niName:'', niStock:'', niPrice:'', niAlert:''});
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

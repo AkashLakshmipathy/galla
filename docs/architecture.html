@@ -1,0 +1,126 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 1400px; padding: 44px 48px 40px; background: #FFFFFF;
+         font: 400 14px/1.45 -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+         color: #111113; }
+  h1 { font-size: 26px; letter-spacing: -0.9px; font-weight: 700; }
+  .sub { color: #77777C; font-size: 13.5px; margin-top: 5px; }
+  .grid { display: grid; grid-template-columns: 232px 1fr 268px; gap: 20px; margin-top: 30px; align-items: start; }
+  .lane { background: #F4F4F6; border-radius: 16px; padding: 16px; }
+  .lane > h2 { font-size: 10.5px; font-weight: 600; letter-spacing: .09em;
+               text-transform: uppercase; color: #AEAEB2; margin-bottom: 11px; }
+  .box { background: #FFFFFF; border-radius: 12px; padding: 11px 13px; margin-bottom: 9px; }
+  .box:last-child { margin-bottom: 0; }
+  .box b { font-size: 13.5px; font-weight: 600; display: block; }
+  .box span { font-size: 11.5px; color: #77777C; display: block; margin-top: 2px; line-height: 1.4; }
+  .tag { display: inline-block; font-size: 9.5px; font-weight: 600; letter-spacing: .05em;
+         text-transform: uppercase; padding: 2.5px 7px; border-radius: 999px; margin-bottom: 6px; }
+  .gcp { background: #E8F0FE; color: #0A6BE0; }
+  .adk { background: #FBF2E0; color: #9C6408; }
+  .rule { background: #EAF6EE; color: #28934E; }
+  .fleet { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .agent { background: #FFFFFF; border-radius: 12px; padding: 11px; }
+  .agent b { font-size: 12.5px; font-weight: 600; display: block; }
+  .agent span { font-size: 10.5px; color: #77777C; display: block; margin-top: 3px; line-height: 1.35; }
+  .agent.star { background: #111113; }
+  .agent.star b { color: #FFFFFF; } .agent.star span { color: #AEAEB2; }
+  .chain { display: flex; align-items: center; gap: 7px; margin: 13px 0 12px;
+           font-size: 11.5px; color: #77777C; flex-wrap: wrap; }
+  .chain b { color: #111113; font-weight: 600; }
+  .arrow { color: #C7C7CC; }
+  .note { margin-top: 26px; background: #111113; color: #FFFFFF; border-radius: 16px;
+          padding: 16px 20px; display: flex; gap: 34px; align-items: flex-start; }
+  .note div { flex: 1; }
+  .note b { font-size: 12.5px; display: block; margin-bottom: 4px; }
+  .note span { font-size: 11.5px; color: #AEAEB2; line-height: 1.5; display: block; }
+  .flowline { font-size: 11px; color: #AEAEB2; margin: 9px 0 0; }
+</style></head><body>
+
+<h1>Galla — agentic back office for a Coimbatore hardware shop</h1>
+<div class="sub">Google ADK agent fleet on Cloud Run · Gemini multimodal via Vertex AI · every money write in a Firestore transaction</div>
+
+<div class="grid">
+  <div class="lane">
+    <h2>What the shop does</h2>
+    <div class="box"><b>Tamil voice note</b><span>Contractor, on WhatsApp</span></div>
+    <div class="box"><b>Photo of a material list</b><span>Handwriting, on a slip</span></div>
+    <div class="box"><b>Photo of a supplier bill</b><span>Printed GST invoice</span></div>
+    <div class="box"><b>Photo of a khata page</b><span>25 years of paper ledger</span></div>
+    <div class="box" style="background:#EEEEF0"><b>Nobody at all</b><span>The 1st of the month</span></div>
+    <div class="flowline">↓ PWA · 390px · installable · offline shell</div>
+  </div>
+
+  <div class="lane">
+    <h2>Ingestion &amp; the agent fleet</h2>
+    <div class="box">
+      <span class="tag gcp">Cloud Run</span>
+      <b>FastAPI — /ingest, /pubsub/push, /jobs/gst-compile</b>
+      <span>Mints the record id, returns immediately, hands the work off. min-instances=0.</span>
+    </div>
+    <div class="chain">
+      <span class="tag gcp" style="margin:0">Pub/Sub</span><span class="arrow">→</span>
+      <b>shop-events</b><span class="arrow">→</span> push subscription
+      <span class="arrow">·</span>
+      <span class="tag gcp" style="margin:0">Cloud Scheduler</span><span class="arrow">→</span>
+      <b>0 6 1 * *</b> IST
+    </div>
+    <div class="box" style="padding-bottom:13px">
+      <span class="tag adk">Google ADK · LlmAgent on Gemini Flash</span>
+      <div class="fleet">
+        <div class="agent"><b>Intake</b><span>Speech &amp; handwriting → line items</span></div>
+        <div class="agent"><b>Stock &amp; Pricing</b><span>Tier rates, substitutes. No model.</span></div>
+        <div class="agent star"><b>Credit Guardian</b><span>Rules decide. Gemini only phrases.</span></div>
+        <div class="agent"><b>Quotation</b><span>HSN, CGST/SGST, amount in words</span></div>
+        <div class="agent"><b>Purchase Entry</b><span>Invoice OCR → stock &amp; payable</span></div>
+        <div class="agent"><b>Khata Digitizer</b><span>Rows + a bbox on the photo</span></div>
+        <div class="agent"><b>GST Compiler</b><span>CA-ready summary, unattended</span></div>
+        <div class="agent"><b>Notifier</b><span>Back out to WhatsApp</span></div>
+      </div>
+    </div>
+    <div class="box">
+      <span class="tag rule">Human in the loop</span>
+      <b>Confidence &lt; 0.85 → confirm_queue, never the books</b>
+      <span>Owner approves, corrects, or declines. Only then does money move.</span>
+    </div>
+  </div>
+
+  <div class="lane">
+    <h2>State &amp; evidence</h2>
+    <div class="box">
+      <span class="tag gcp">Firestore · asia-south1</span>
+      <b>shop · parties · catalog · inventory</b>
+      <span>orders · purchases · khata_imports · confirm_queue · gst_registers</span>
+    </div>
+    <div class="box">
+      <span class="tag rule">One transaction</span>
+      <b>ledger + parties.credit.outstanding</b>
+      <span>Append-only. Corrections are reversing entries. stock_applied guards
+      against a Pub/Sub redelivery doubling stock.</span>
+    </div>
+    <div class="box">
+      <span class="tag adk">Product &amp; audit, one collection</span>
+      <b>agent_traces</b>
+      <span>Every step: agent, status, duration, model, tokens, one-line output.
+      Drives the on-screen trace strip and the audit log.</span>
+    </div>
+    <div class="box">
+      <span class="tag gcp">Cloud Storage</span>
+      <b>galla-media</b>
+      <span>Voice notes, bill and khata photos, quotation and GST PDFs, CSV registers.</span>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <div><b>The LLM never decides money.</b><span>It extracts and it explains. Deterministic
+    Python rules produce every verdict, and <code>rule_fired</code> is persisted on each one,
+    so any decision can be reproduced and explained months later.</span></div>
+  <div><b>Every model call has a fallback.</b><span>No credentials, a bad response or an API
+    error falls through to a deterministic path. A demo never shows an empty state
+    because a call failed.</span></div>
+  <div><b>Asynchronous by construction.</b><span>Ingestion returns before the agents run.
+    Pub/Sub carries the work; the trace document is how the phone finds out it finished.</span></div>
+</div>
+
+</body></html>
