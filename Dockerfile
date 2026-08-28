@@ -17,4 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY --from=web /web/dist ./web
 EXPOSE 8080
-CMD exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+# JSON form so signals reach the process; `exec` inside sh keeps uvicorn as PID 1
+# while still letting Cloud Run inject $PORT.
+CMD ["/bin/sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
