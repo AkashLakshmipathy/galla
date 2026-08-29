@@ -44,7 +44,21 @@ Return ONLY JSON:
 `bbox` must be the row's rectangle on the image, normalised 0-1 from the top-left
 — the owner taps a row to see the handwriting it came from, so this has to be
 right. Where a digit is genuinely ambiguous, lower the confidence and list the
-alternative readings; do not guess confidently."""
+alternative readings; do not guess confidently.
+
+Two things these pages do that will mislead you if you let them:
+
+RUNNING BALANCES ARE NOT TRANSACTIONS. A khata usually carries a running total
+down the right-hand side, and often a carried-forward figure at the top and a
+total at the bottom. Those are the *result* of the entries, not entries
+themselves. Report only what was actually taken or paid on the day. A number
+that equals roughly the sum of the rows above it is a balance — leave it out.
+Reporting balances as transactions doubles a man's debt.
+
+EACH ROW HAS ITS OWN DATE. Dates are usually written once and then implied down
+the page until the next one appears; carry the last date forward rather than
+stamping every row with the same one. If a row's date is genuinely unknowable,
+use the last date you saw and lower that row's confidence."""
 
 
 def _fixture() -> dict:

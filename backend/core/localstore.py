@@ -21,6 +21,10 @@ from pathlib import Path
 from typing import Any, Iterator
 
 _LOCK = threading.RLock()
+
+
+class ReadAfterWriteError(Exception):
+    """What real Firestore raises. Mirrored so the shim cannot flatter us."""
 _DT_PREFIX = "@dt:"
 _DATE_PREFIX = "@date:"
 
@@ -269,10 +273,16 @@ class Transaction:
     def get(self, ref) -> DocumentSnapshot:
         """The pre-transaction snapshot, exactly as Firestore would return it.
 
-        Reads intentionally bypass `_overlay`: see the class docstring. If a
-        transaction body needs the value it just wrote, it must carry that value
-        forward itself rather than re-reading.
+        Firestore requires every read in a transaction to happen before every
+        write and raises `ReadAfterWriteError` otherwise. A shim that quietly
+        allowed the interleaving let three transaction bodies pass every test and
+        then fail with a 500 in production the first time a real shop pressed
+        Save — so it raises here too, in tests, where it is cheap to find.
         """
+        if self._writes:
+            raise ReadAfterWriteError(
+                "Attempted read after write in a transaction. Do every read "
+                "first, then every write.")
         if isinstance(ref, Query) and not isinstance(ref, CollectionReference):
             return list(ref.stream())          # query-in-transaction
         return DocumentSnapshot(ref, self._client._read(ref.collection_name, ref.id))

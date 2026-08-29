@@ -78,10 +78,16 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
             if sku_id:
                 sold[sku_id] = sold.get(sku_id, 0) + float(line.get("qty") or 0)
 
+        # Read every inventory document first. One read-then-write per SKU is
+        # what Firestore refuses, and it only shows up on the second line.
+        on_hand = {sku_id: (db().collection("inventory").document(sku_id)
+                            .get(transaction=txn).to_dict() or {})
+                   for sku_id in sold}
+
         stock_delta = []
         for sku_id, qty in sold.items():
             inventory_ref = db().collection("inventory").document(sku_id)
-            current = inventory_ref.get(transaction=txn).to_dict() or {}
+            current = on_hand[sku_id]
             before = int(current.get("qty_on_hand") or 0)
             after = int(before - qty)
             # A shop routinely promises goods it has not received yet. Refusing
@@ -140,52 +146,82 @@ def record_owner_action(order_id: str, action: str, note: str = "",
 def confirm_purchase(purchase_id: str) -> dict:
     """Stock increments + supplier payable + `stock_applied`, atomically.
 
+    Every read happens before every write. Firestore requires that and raises
+    `ReadAfterWriteError` otherwise — creating a catalogue row and then reading
+    an inventory document failed with a 500 the first time a real shop pressed
+    Save on a bill containing a product it had never stocked.
+
     `stock_applied` is read inside the transaction, so a redelivered Pub/Sub
     message or a double-tap cannot increment stock twice.
     """
     purchase_ref = db().collection("purchases").document(purchase_id)
 
     def txn_body(txn):
+        # ---- reads ---------------------------------------------------------
         purchase = purchase_ref.get(transaction=txn).to_dict() or {}
         if not purchase:
             raise LookupError(f"purchase {purchase_id} not found")
         if purchase.get("stock_applied"):
             return {"purchase_id": purchase_id, "already": True,
-                    "stock_delta": purchase.get("stock_delta") or []}
+                    "stock_delta": purchase.get("stock_delta") or [],
+                    "created_skus": purchase.get("created_skus") or [],
+                    "supplier_id": purchase.get("supplier_id"),
+                    "created_supplier": purchase.get("created_supplier"),
+                    "payable_ledger_id": purchase.get("payable_ledger_id"),
+                    "amount": int((purchase.get("totals") or {}).get("total") or 0)}
 
-        # A line for a product the shop has never stocked carries a proposed
-        # catalog record. Create it here, not at scan time, so a bill that gets
-        # discarded leaves no phantom products behind.
         lines = list(purchase.get("lines") or [])
-        created_skus = []
+        # Which lines bring a product the shop has never stocked. Decided now;
+        # written later.
+        to_create = [line for line in lines
+                     if not line.get("sku_id") and line.get("new_sku")
+                     and not line.get("near_miss")]
+
+        # Total per SKU before touching inventory: a supplier splits one product
+        # across several lines, and a transaction cannot see its own writes.
+        wanted: dict[str, int] = {}
         for line in lines:
-            if line.get("sku_id") or not line.get("new_sku"):
-                continue
-            if line.get("near_miss"):
-                continue      # too close to something we stock; the owner decides
+            sku_id = line.get("sku_id") or (
+                line["new_sku"]["sku_id"] if line in to_create else None)
+            if sku_id:
+                wanted[sku_id] = wanted.get(sku_id, 0) + int(line.get("qty") or 0)
+
+        existing_stock = {}
+        for sku_id in wanted:
+            if any(l["new_sku"]["sku_id"] == sku_id for l in to_create):
+                continue                     # about to be created; starts at zero
+            existing_stock[sku_id] = (
+                db().collection("inventory").document(sku_id)
+                .get(transaction=txn).to_dict() or {})
+
+        supplier_id = purchase.get("supplier_id")
+        creating_supplier = not supplier_id and purchase.get("new_supplier")
+        supplier_balance = 0
+        if supplier_id:
+            supplier = (db().collection("parties").document(supplier_id)
+                        .get(transaction=txn).to_dict() or {})
+            supplier_balance = int((supplier.get("credit") or {}).get("outstanding") or 0)
+
+        # ---- writes --------------------------------------------------------
+        created_skus = []
+        for line in to_create:
             sku_id = provisioning.create_sku(txn, line["new_sku"], purchase_id)
             line["sku_id"] = sku_id
             line["matched"] = True
             created_skus.append(sku_id)
 
-        # Total the lines per SKU *before* touching inventory. A supplier
-        # routinely splits one SKU across several lines, and a transaction
-        # cannot see its own writes — so reading and writing a document once
-        # per line would read stale on every line after the first and keep only
-        # the last increment.
-        wanted: dict[str, int] = {}
-        for line in lines:
-            sku_id = line.get("sku_id")
-            if sku_id:
-                wanted[sku_id] = wanted.get(sku_id, 0) + int(line.get("qty") or 0)
+        created_supplier = None
+        if creating_supplier:
+            supplier_id = provisioning.create_party(
+                txn, purchase["new_supplier"], purchase_id)
+            created_supplier = supplier_id
 
         delta = []
         for sku_id, qty in wanted.items():
-            inventory_ref = db().collection("inventory").document(sku_id)
-            current = inventory_ref.get(transaction=txn).to_dict() or {}
+            current = existing_stock.get(sku_id, {})
             before = int(current.get("qty_on_hand") or 0)
             after = before + qty
-            txn.set(inventory_ref, {
+            txn.set(db().collection("inventory").document(sku_id), {
                 "sku_id": sku_id, "qty_on_hand": after,
                 "reorder_level": current.get("reorder_level", 15),
                 "last_updated": datetime.now(timezone.utc),
@@ -193,28 +229,13 @@ def confirm_purchase(purchase_id: str) -> dict:
             })
             delta.append({"sku_id": sku_id, "before": before, "after": after})
 
-        # A bill from a supplier the shop has never dealt with opens their
-        # account here, in the same transaction as the payable it explains.
-        supplier_id = purchase.get("supplier_id")
-        created_supplier = None
-        if not supplier_id and purchase.get("new_supplier"):
-            supplier_id = provisioning.create_party(
-                txn, purchase["new_supplier"], purchase_id)
-            created_supplier = supplier_id
-
         total = int((purchase.get("totals") or {}).get("total") or 0)
+        balance_after = supplier_balance + total
         entry_id = ids.entry_id()
-        balance_after = total
         if supplier_id:
-            supplier_ref = db().collection("parties").document(supplier_id)
-            # A supplier created a moment ago cannot be read back — a Firestore
-            # transaction never sees its own writes — so it starts at zero.
-            previous = 0 if created_supplier else int(
-                ((supplier_ref.get(transaction=txn).to_dict() or {})
-                 .get("credit") or {}).get("outstanding") or 0)
-            balance_after = previous + total
-            txn.update(supplier_ref, {"credit.outstanding": balance_after,
-                                      "updated_at": datetime.now(timezone.utc)})
+            txn.update(db().collection("parties").document(supplier_id),
+                       {"credit.outstanding": balance_after,
+                        "updated_at": datetime.now(timezone.utc)})
         txn.set(_ledger_ref(entry_id), {
             "entry_id": entry_id, "party_id": supplier_id, "date": _today(),
             "type": "purchase_credit", "amount": total, "direction": "credit",
@@ -238,8 +259,6 @@ def confirm_purchase(purchase_id: str) -> dict:
 
     result = run_transaction(txn_body)
     if result.get("created_skus"):
-        # The catalog is cached in-process for read speed; a SKU created a
-        # moment ago has to be visible to the very next line that mentions it.
         from core import catalog
         catalog.invalidate()
     return result
@@ -248,59 +267,60 @@ def confirm_purchase(purchase_id: str) -> dict:
 def commit_khata_import(import_id: str) -> dict:
     """Every confirmed row becomes a ledger entry and moves its party's balance,
     in one transaction. Rows still needing confirmation are left alone — a bad
-    OCR read must never silently change a balance."""
+    OCR read must never silently change a balance.
+
+    Reads first, writes second: opening an account and then reading another
+    party's balance is the interleaving Firestore refuses.
+    """
     import_ref = db().collection("khata_imports").document(import_id)
 
     def txn_body(txn):
+        # ---- reads ---------------------------------------------------------
         record = import_ref.get(transaction=txn).to_dict() or {}
         if not record:
             raise LookupError(f"khata import {import_id} not found")
         if record.get("status") == "committed":
             return {"import_id": import_id, "already": True,
-                    "posted": record.get("posted_count", 0)}
+                    "posted": record.get("posted_count", 0),
+                    "created_parties": record.get("created_parties") or []}
 
         rows = list(record.get("rows") or [])
+        confirmed = [r for r in rows
+                     if r.get("status") in {"auto_accepted", "confirmed"}]
 
-        # Open an account for any confirmed row naming somebody we have never
-        # traded with. Same transaction as the ledger entries, so a discarded
-        # import never leaves an empty profile behind.
-        created_parties: list[str] = []
-        for row in rows:
-            if row.get("status") not in {"auto_accepted", "confirmed"}:
+        # Which rows name somebody with no account yet. One proposal per person,
+        # however many lines mention them.
+        to_open: dict[str, dict] = {}
+        for row in confirmed:
+            if row.get("party_id") or not row.get("new_party") or row.get("near_miss"):
                 continue
-            if row.get("party_id") or not row.get("new_party"):
-                continue
-            if row.get("near_miss"):
-                continue      # might be an existing contractor; the owner decides
-            party_id = row["new_party"]["party_id"]
-            # A page names the same person on several lines. They share one
-            # proposal, so create the account once and point the rest at it.
-            if party_id not in created_parties:
-                party_id = provisioning.create_party(txn, row["new_party"], import_id)
-                created_parties.append(party_id)
-            row["party_id"] = party_id
+            to_open.setdefault(row["new_party"]["party_id"], row["new_party"])
 
-        postable = [r for r in rows
-                    if r.get("status") in {"auto_accepted", "confirmed"}
-                    and r.get("party_id")]
-        balances: dict[str, int] = {}
+        balances: dict[str, int] = {pid: 0 for pid in to_open}
+        for row in confirmed:
+            party_id = row.get("party_id")
+            if party_id and party_id not in balances:
+                party = (db().collection("parties").document(party_id)
+                         .get(transaction=txn).to_dict() or {})
+                balances[party_id] = int(
+                    (party.get("credit") or {}).get("outstanding") or 0)
+
+        # ---- writes --------------------------------------------------------
+        created_parties = [provisioning.create_party(txn, proposed, import_id)
+                           for proposed in to_open.values()]
+        for row in confirmed:
+            if not row.get("party_id") and row.get("new_party") \
+                    and not row.get("near_miss"):
+                row["party_id"] = row["new_party"]["party_id"]
+
         posted = 0
-        for row in postable:
-            party_id = row["party_id"]
-            party_ref = db().collection("parties").document(party_id)
-            if party_id not in balances:
-                if party_id in created_parties:
-                    # Just created in this transaction, so it cannot be read back
-                    # — Firestore reads never see a transaction's own writes.
-                    balances[party_id] = 0
-                else:
-                    party = party_ref.get(transaction=txn).to_dict() or {}
-                    balances[party_id] = int(
-                        (party.get("credit") or {}).get("outstanding") or 0)
+        for row in confirmed:
+            party_id = row.get("party_id")
+            if not party_id:
+                continue
             amount = int(row.get("amount") or 0)
             is_payment = row.get("entry_type") == "payment_received"
             balances[party_id] += -amount if is_payment else amount
-
             entry_id = ids.entry_id()
             txn.set(_ledger_ref(entry_id), {
                 "entry_id": entry_id, "party_id": party_id,

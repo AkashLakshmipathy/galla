@@ -237,9 +237,13 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
             # He just told us who this is. Remember the spelling.
             if resolved[0] == "party_id" and resolved[1]:
                 parties.learn_alias(resolved[1], row.get("party_name_raw", ""))
+        # "Clear" means anything ready to post — auto-accepted or confirmed by
+        # hand. Counting only the former showed a fully-reviewed page as
+        # "0 clear / 0 confirm", which reads as if the page had vanished.
         ref.update({"rows": rows,
                     "auto_accepted_count": sum(
-                        1 for r in rows if r.get("status") == "auto_accepted"),
+                        1 for r in rows
+                        if r.get("status") in ("auto_accepted", "confirmed")),
                     "needs_confirm_count": sum(
                         1 for r in rows if r.get("status") == "needs_confirm")})
         return
@@ -394,6 +398,9 @@ def edit_khata_rows(import_id: str, rows_in: list[KhataRow]):
             row["status"] = "confirmed"
             row["confidence"] = 1.0
     ref.update({"rows": rows,
+                "auto_accepted_count": sum(
+                    1 for r in rows
+                    if r.get("status") in ("auto_accepted", "confirmed")),
                 "needs_confirm_count": sum(
                     1 for r in rows if r.get("status") == "needs_confirm")})
     return serialize.khata_view(ref.get().to_dict())
