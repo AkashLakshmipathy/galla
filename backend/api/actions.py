@@ -461,6 +461,32 @@ def edit_khata_rows(import_id: str, rows_in: list[KhataRow]):
     return serialize.khata_view(ref.get().to_dict())
 
 
+@router.post("/khata/commit-ready")
+def commit_all_ready():
+    """Post every page that has nothing left to confirm.
+
+    Digitising a book means dozens of pages, and making the owner open each one
+    to press the same button is how finished work ends up sitting in review.
+    Pages with unresolved rows are left alone.
+    """
+    posted, skipped = [], []
+    for snap in db().collection("khata_imports").stream():
+        record = snap.to_dict() or {}
+        if record.get("status") == "committed":
+            continue
+        rows = record.get("rows") or []
+        if any(r.get("status") == "needs_confirm" for r in rows):
+            skipped.append(record.get("import_id"))
+            continue
+        try:
+            posted.append(commit_khata_import(record["import_id"]))
+        except Exception as exc:                          # noqa: BLE001
+            skipped.append(f"{record.get('import_id')}: {exc}"[:120])
+    return {"posted": len(posted), "entries": sum(p.get("posted", 0) for p in posted),
+            "accounts_opened": sum(len(p.get("created_parties") or []) for p in posted),
+            "skipped": skipped}
+
+
 @router.post("/khata/{import_id}/commit")
 def commit_khata(import_id: str):
     """Only confirmed rows post. A row still in doubt stays out of the books."""

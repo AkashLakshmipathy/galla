@@ -87,14 +87,44 @@ def list_traces(limit: int = 20):
 
 @router.get("/approvals")
 def approvals():
+    """Everything waiting on the owner — including work that is *finished* and
+    simply has not been posted yet.
+
+    A page read, reviewed and reconciled is worth nothing until its entries
+    reach the ledger, and there was no sign anywhere that the last tap was
+    still outstanding. Four pages sat in review for a day looking done.
+    """
     orders = [serialize.order_view(o) for o in
               _docs("orders", "created_at", limit=50)
               if o.get("status") == "awaiting_approval"]
     queue = [serialize.jsonable(i) for i in
              _docs("confirm_queue", "created_at", desc=False, limit=50)
              if i.get("status") == "pending"]
+
+    ready, waiting = [], []
+    for record in _docs("khata_imports", "created_at", limit=100):
+        if record.get("status") == "committed":
+            continue
+        rows = record.get("rows") or []
+        blocked = sum(1 for r in rows if r.get("status") == "needs_confirm")
+        entry = {
+            "import_id": record.get("import_id"),
+            "party_name_raw": record.get("party_name_raw"),
+            "rows": len(rows), "blocked": blocked,
+            "opening_balance": record.get("opening_balance"),
+            "closing_balance": record.get("closing_balance"),
+            "balances": bool((record.get("arithmetic") or {}).get("balances")),
+        }
+        (waiting if blocked else ready).append(serialize.jsonable(entry))
+
+    unconfirmed = [serialize.purchase_view(p) for p in
+                   _docs("purchases", "created_at", limit=50)
+                   if not p.get("stock_applied")]
+
     return {"orders": orders, "confirm_queue": queue,
-            "badge": len(orders) + len(queue)}
+            "khata_ready": ready, "khata_waiting": waiting,
+            "purchases_unsaved": unconfirmed,
+            "badge": len(orders) + len(queue) + len(ready) + len(unconfirmed)}
 
 
 @router.get("/confirm-queue")

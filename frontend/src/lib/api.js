@@ -101,6 +101,7 @@ export const api = {
   confirmPurchase: (id) => request(`/api/purchases/${id}/confirm`, { method: "POST" }),
   editKhataRows: (id, rows) => request(`/api/khata/${id}/rows`, { method: "POST", body: rows }),
   commitKhata: (id) => request(`/api/khata/${id}/commit`, { method: "POST" }),
+  commitReadyKhata: () => request("/api/khata/commit-ready", { method: "POST" }),
   renameParty: (id, body) =>
     request(`/api/parties/${id}`, { method: "PATCH", body }),
   mergeParties: (source_id, target_id) =>

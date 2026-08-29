@@ -108,7 +108,7 @@ export default function App() {
       <main className={isTab ? "pb-[96px]" : "pb-8"} key={nudge}>
         <Routes>
           <Route path="/" element={<Counter onToast={showToast} />} />
-          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/approvals" element={<Approvals onToast={showToast} />} />
           <Route path="/credit" element={<Credit />} />
           <Route path="/credit/:partyId" element={<PartyLedger />} />
           <Route path="/purchases-book" element={<Purchases />} />

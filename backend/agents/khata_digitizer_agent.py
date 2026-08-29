@@ -303,9 +303,13 @@ def run(payload: dict, trace) -> dict:
 
         check = arithmetic_check(extraction, rows)
         if check.get("balances"):
-            # The page proved itself. Nothing here needs a human.
+            # The page proved itself, so nothing on it needs a human — including
+            # rows for a customer with no account yet. Requiring an existing
+            # party_id here left a fully reconciled page stuck behind seven
+            # questions it had already answered.
             for row in rows:
-                if row["status"] == "needs_confirm" and row.get("party_id"):
+                if row["status"] == "needs_confirm" and (
+                        row.get("party_id") or row.get("new_party")):
                     row["status"] = "auto_accepted"
         record = {
             "import_id": import_id,
