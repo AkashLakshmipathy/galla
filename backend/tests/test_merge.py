@@ -203,3 +203,36 @@ def test_credit_guardian_sees_the_real_exposure_after_a_merge(seeded):
     revealed = decide(party, 5000)
     assert revealed.exposure_pct > hidden.exposure_pct
     assert revealed.inputs["outstanding"] == hidden.inputs["outstanding"] + 12000
+
+
+# ------------------------------------------------------------------ renaming
+def test_renaming_keeps_the_old_spelling_as_an_alias(seeded):
+    """It is how the name appears on every page already scanned, and how the
+    same scrawl will be read on the next one."""
+    from api.actions import Rename, rename_party
+    from core import parties
+
+    rename_party("selvam", Rename(name="Nalantha mani"))
+
+    party = db().collection("parties").document("selvam").get().to_dict()
+    assert party["name"] == "Nalantha mani"
+    assert "Selvam" in party["aliases"]
+    # a page still spelling it the old way lands on the same account
+    assert parties.match("Selvam")[0] == "selvam"
+
+
+def test_renaming_marks_the_account_as_reviewed(seeded):
+    from api.actions import Rename, rename_party
+    db().collection("parties").document("selvam").update({"provisional": True})
+    rename_party("selvam", Rename(name="Nalantha mani"))
+    assert db().collection("parties").document("selvam").get() \
+        .to_dict()["provisional"] is False
+
+
+def test_renaming_to_the_same_name_adds_no_alias(seeded):
+    from api.actions import Rename, rename_party
+    before = db().collection("parties").document("selvam").get() \
+        .to_dict().get("aliases", [])
+    rename_party("selvam", Rename(name="Selvam"))
+    assert db().collection("parties").document("selvam").get() \
+        .to_dict().get("aliases", []) == before

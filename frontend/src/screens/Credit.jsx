@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, EmptyState, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
+import { Card, EmptyState, FatPill, GroupedList, Row, SectionLabel, Sheet } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { BookChart, PeriodTabs, TotalsRow } from "../components/BookChart.jsx";
 import { ddmmyyyy, inr } from "../lib/format.js";
@@ -167,8 +167,9 @@ export function Credit() {
 export function PartyLedger() {
   const navigate = useNavigate();
   const { partyId } = useParams();
-  const { data } = usePolling(() => api.ledger(partyId), { interval: 0,
-                                                          deps: [partyId] });
+  const [renaming, setRenaming] = useState(false);
+  const { data, refresh } = usePolling(() => api.ledger(partyId),
+    { interval: 0, deps: [partyId] });
   if (!data) return <div className="px-gutter pt-6 text-body text-text-2">Loading…</div>;
 
   const party = data.party ?? {};
@@ -183,9 +184,22 @@ export function PartyLedger() {
       </button>
 
       <Card className="p-cardpad">
-        <div className="text-supplier font-bold">{party.name}</div>
-        {party.name_ta && party.name_ta !== party.name && (
-          <div className="text-meta text-text-3">{party.name_ta}</div>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-supplier font-bold">{party.name}</div>
+            {party.name_ta && party.name_ta !== party.name && (
+              <div className="text-meta text-text-3">{party.name_ta}</div>
+            )}
+          </div>
+          <button onClick={() => setRenaming(true)}
+                  className="text-meta font-semibold text-accent shrink-0">
+            Rename
+          </button>
+        </div>
+        {party.provisional && (
+          <div className="text-micro text-amber-deep mt-1">
+            Name read from your handwriting — check it
+          </div>
         )}
         <div className="text-verdict font-bold tnum mt-3">
           {inr(credit.outstanding)}
@@ -243,6 +257,73 @@ export function PartyLedger() {
           No entries yet.
         </Card>
       )}
+
+      <RenameSheet open={renaming} party={party} onClose={() => setRenaming(false)}
+                   onSaved={refresh} />
     </div>
+  );
+}
+
+/* Correcting a name the handwriting got wrong. The old spelling is kept, not
+ * replaced — it is how this customer appears on every page already scanned. */
+function RenameSheet({ open, party, onClose, onSaved }) {
+  const [name, setName] = useState("");
+  const [nameTa, setNameTa] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName(party?.name ?? "");
+      setNameTa(party?.name_ta ?? "");
+      setPhone(party?.phone ?? "");
+    }
+  }, [open, party]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.renameParty(party.party_id, { name, name_ta: nameTa, phone });
+      await onSaved?.();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const field = "w-full bg-transparent text-body font-semibold outline-none mt-1";
+  return (
+    <Sheet open={open} onClose={onClose} title="Correct the name">
+      <div className="px-gutter pb-8">
+        <Card className="overflow-hidden">
+          <label className="block px-[18px] py-[13px] border-b border-separator">
+            <span className="text-meta text-text-2">Name</span>
+            <input className={field} value={name} autoFocus
+                   onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="block px-[18px] py-[13px] border-b border-separator">
+            <span className="text-meta text-text-2">In your language</span>
+            <input className={field} value={nameTa} placeholder="optional"
+                   onChange={(e) => setNameTa(e.target.value)} />
+          </label>
+          <label className="block px-[18px] py-[13px]">
+            <span className="text-meta text-text-2">Phone</span>
+            <input className={field} value={phone} inputMode="tel" placeholder="optional"
+                   onChange={(e) => setPhone(e.target.value)} />
+          </label>
+        </Card>
+        <p className="text-micro text-text-3 mt-3 leading-relaxed">
+          {party?.name
+            ? `"${party.name}" is kept as an old spelling, so pages already scanned — and the same handwriting next time — still land here.`
+            : ""}
+        </p>
+        <div className="mt-4 space-y-1.5">
+          <FatPill onClick={save} disabled={busy || !name.trim()}>
+            {busy ? "Saving…" : "Save"}
+          </FatPill>
+          <FatPill variant="tertiary" onClick={onClose}>Cancel</FatPill>
+        </div>
+      </div>
+    </Sheet>
   );
 }

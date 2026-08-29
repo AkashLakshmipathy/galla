@@ -293,6 +293,42 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
                     "total": total})
 
 
+class Rename(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    name_ta: str | None = None
+    phone: str | None = None
+
+
+@router.patch("/parties/{party_id}")
+def rename_party(party_id: str, body: Rename):
+    """Correct a name the handwriting got wrong.
+
+    The old spelling is kept as an alias rather than discarded. It is how the
+    customer's name appears on every page already scanned, and how the same
+    scrawl will be read on the next one — throwing it away would make the pages
+    stop matching the account the moment it is tidied up.
+    """
+    ref = db().collection("parties").document(party_id)
+    party = ref.get().to_dict()
+    if not party:
+        raise HTTPException(404, "no such account")
+
+    previous = party.get("name")
+    update = {"name": body.name.strip(), "updated_at": datetime.now(timezone.utc)}
+    if body.name_ta is not None:
+        update["name_ta"] = body.name_ta.strip() or None
+    if body.phone is not None:
+        update["phone"] = body.phone.strip() or None
+    # A renamed account is one a human has looked at.
+    if party.get("provisional"):
+        update["provisional"] = False
+    ref.update(update)
+
+    if previous and previous.strip() != body.name.strip():
+        parties.learn_alias(party_id, previous)
+    return serialize.party_view(ref.get().to_dict())
+
+
 class Merge(BaseModel):
     source_id: str
     target_id: str
