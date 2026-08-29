@@ -137,9 +137,9 @@ export function Counter() {
       {!loading && items.length === 0 && (
         <EmptyState
           icon="◎"
-          title="Nothing at the counter yet"
-          titleTa="இன்னும் எதுவும் இல்லை"
-          body="Photograph a supplier bill or play a customer voice note — watch what happens."
+          title="Your shop is ready"
+          titleTa="உங்கள் கடை தயார்"
+          body="Tap the camera button and photograph a supplier bill. The products and quantities add themselves — you do not type anything in."
         />
       )}
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { CaptureButton, CaptureSheet } from "./components/Capture.jsx";
 import { DemoChip, DemoComposer } from "./components/DemoComposer.jsx";
 import { TabBar } from "./components/TabBar.jsx";
 import { OfflineBanner, Toast } from "./components/ui.jsx";
@@ -18,6 +19,7 @@ import { Shop } from "./screens/Shop.jsx";
 export default function App() {
   const [gate, setGate] = useState(null);      // null while we find out
   const [composerOpen, setComposerOpen] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [toast, showToast] = useToast();
   const [nudge, setNudge] = useState(0);          // bump to force screens to refetch
   const online = useOnline();
@@ -114,7 +116,19 @@ export default function App() {
         </Routes>
       </main>
 
+      {isTab && <CaptureButton onOpen={() => setCaptureOpen(true)} />}
       {isTab && <TabBar badge={approvals?.badge ?? 0} />}
+      <CaptureSheet
+        open={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onError={showToast}
+        onStarted={(queued) => {
+          showToast("Photo saved — the agents are reading it");
+          setNudge((n) => n + 1);
+          if (queued.purchase_id) navigate(`/purchases/${queued.purchase_id}`);
+          else if (queued.import_id) navigate(`/khata/${queued.import_id}`);
+        }}
+      />
       {demoMode && <DemoComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}

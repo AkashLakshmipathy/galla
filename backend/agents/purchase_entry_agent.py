@@ -32,6 +32,8 @@ Return ONLY JSON:
   "supplier_gstin": "<15 chars or null>",
   "invoice_no": "<as printed>",
   "invoice_date": "<YYYY-MM-DD>",
+  "printed_total": <the grand total printed on the bill, or null>,
+  "printed_taxable": <the taxable value printed on the bill, or null>,
   "lines": [
     {"description_raw": "<exactly as printed>",
      "qty": <number>, "rate": <number per unit>,
@@ -122,15 +124,30 @@ def _resolve_lines(raw_lines: list[dict], purchase_id: str) -> list[dict]:
     return lines
 
 
-def _totals(lines: list[dict]) -> dict:
+def _totals(lines: list[dict], printed: dict | None = None) -> dict:
+    """What the shop owes, which is what the paper says.
+
+    Recomputing GST line by line and rounding each one drifts a rupee or two
+    from the supplier's own arithmetic — they may round the invoice once, or per
+    tax slab. Our number is not more correct than theirs: the invoice is the
+    document the shop will be asked to pay, so the printed total wins and any
+    difference is recorded rather than quietly absorbed. Over a year of bills
+    those rupees are a real reconciliation problem.
+    """
     subtotal = sum(int(line["amount"]) for line in lines)
     cgst = sgst = 0
     for line in lines:
         split = gst_split(int(line["amount"]), float(line["gst_rate"]))
         cgst += split["cgst"]
         sgst += split["sgst"]
-    return {"subtotal": subtotal, "cgst": cgst, "sgst": sgst,
-            "total": subtotal + cgst + sgst}
+    computed = subtotal + cgst + sgst
+
+    stated = int(round(float((printed or {}).get("total") or 0))) or None
+    totals = {"subtotal": subtotal, "cgst": cgst, "sgst": sgst,
+              "computed_total": computed, "total": stated or computed}
+    if stated and stated != computed:
+        totals["rounding_difference"] = stated - computed
+    return totals
 
 
 def _queue_uncertain(purchase_id: str, lines: list[dict],
@@ -159,7 +176,8 @@ def run(payload: dict, trace) -> dict:
         image_uri = payload.get("media_path") or payload.get("source_image_url")
         purchase_id = payload.get("purchase_id") or ids.purchase_id()
         lines = _resolve_lines(extraction.get("lines") or [], purchase_id)
-        totals = _totals(lines)
+        totals = _totals(lines, {"total": extraction.get("printed_total"),
+                                 "taxable": extraction.get("printed_taxable")})
         low = sum(1 for line in lines
                   if confirm_queue.is_uncertain(line["confidence"]))
 

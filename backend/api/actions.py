@@ -256,7 +256,7 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
         lines[index]["matched"] = bool(lines[index].get("sku_id"))
         lines[index]["amount"] = int(round(float(lines[index].get("qty") or 0)
                                            * float(lines[index].get("rate") or 0)))
-        ref.update({"lines": lines, "totals": _purchase_totals(lines),
+        ref.update({"lines": lines, "totals": _purchase_totals(lines, record.get("totals")),
                     "status": "extracted" if all(
                         float(l.get("confidence") or 0) >= CONFIDENCE_THRESHOLD
                         for l in lines) else "needs_confirm"})
@@ -337,23 +337,21 @@ def edit_purchase_lines(purchase_id: str, edits: list[PurchaseLineEdit]):
                                    * float(line.get("rate") or 0)))
         line["confidence"] = 1.0
         lines[edit.index] = line
-    totals = _purchase_totals(lines)
+    totals = _purchase_totals(lines, purchase.get("totals"))
     ref.update({"lines": lines, "totals": totals,
                 "status": "extracted", "updated_at": datetime.now(timezone.utc)})
     return serialize.purchase_view(ref.get().to_dict())
 
 
-def _purchase_totals(lines: list[dict]) -> dict:
-    from core.money import gst_split
-    subtotal = sum(int(l.get("amount") or 0) for l in lines)
-    cgst = sgst = 0
-    for line in lines:
-        split = gst_split(int(line.get("amount") or 0),
-                          float(line.get("gst_rate") or 0))
-        cgst += split["cgst"]
-        sgst += split["sgst"]
-    return {"subtotal": subtotal, "cgst": cgst, "sgst": sgst,
-            "total": subtotal + cgst + sgst}
+def _purchase_totals(lines: list[dict], previous: dict | None = None) -> dict:
+    """Editing a line recomputes the tax, but the supplier's printed total still
+    stands unless the owner changed a quantity or a rate — see
+    `purchase_entry_agent._totals` for why the paper wins."""
+    from agents.purchase_entry_agent import _totals
+    stated = (previous or {}).get("total")
+    computed_before = (previous or {}).get("computed_total")
+    printed = {"total": stated} if stated and stated == computed_before else None
+    return _totals(lines, printed)
 
 
 class KhataRow(BaseModel):

@@ -137,7 +137,23 @@ only be *partly* proven without a Google Cloud project, so here is the honest sp
 | Firestore transactions | Real semantics: `core/localstore.py` deliberately does **not** offer read-your-writes, because Firestore does not. That faithfulness caught a lost-stock bug on duplicated invoice lines. |
 | Cloud Run · Pub/Sub · Cloud Scheduler · Cloud Storage | **Working in production.** Event in → push subscription → agent chain → verdict; Scheduler produced a GST register unattended; quotation PDF written to `gs://galla-media`. |
 | Firestore rules | **Published** to `cloud.firestore`. |
-| Owner authentication | **Not built.** See below. |
+| Owner authentication | **A shop passcode**, PBKDF2-hashed with a per-shop salt, HMAC-signed session tokens, rate-limited. Every `/api` route is gated. Firebase Auth on a phone number is the stronger successor. |
+| Gemini vision | **Working in production.** A photographed GST invoice returns supplier, GSTIN, invoice number, every line, and the right tax slab per line. |
+
+### Running a real shop on it
+
+The deployed instance holds no seeded data. A fresh install shows a three-step
+setup — shop details, tax details, passcode — and then an empty counter. The
+catalogue and the contact list fill themselves in from the first bills and khata
+pages photographed; nothing is invented on the owner's behalf.
+
+Install it by opening the URL on a phone and choosing **Add to Home screen**
+(Chrome on Android, Safari on iOS). It runs as a normal app from then on, and the
+shell opens offline — though anything touching money is network-first, so the
+owner never acts on a stale balance.
+
+`POST /api/setup/erase` wipes every record back to first-run. It needs the
+passcode *and* the word ERASE, because there is no undo.
 
 ### The one thing a judge will poke at
 
@@ -146,16 +162,18 @@ only be *partly* proven without a Google Cloud project, so here is the honest sp
 `--allow-unauthenticated`, and the agents use the Admin SDK, which bypasses rules
 entirely. So the rules are correct and currently unused, and the API is open.
 
-The two endpoints that matter — `/pubsub/push` and `/jobs/gst-compile`, which
-could be used to inject a fake sale or to burn Gemini credits — have OIDC caller
-verification in `core/authz.py`, and `deploy.sh` wires the service-account
-identities for it. It is **off by default** (`REQUIRE_OIDC=false`) because that
-check has never run against a real Google-signed token, and switching on an
-untested auth path during a demo is how a demo dies. `deploy.sh` prints the
-one-line command to enable it once the async paths are confirmed working.
+`/pubsub/push` and `/jobs/gst-compile` could otherwise be used to inject a fake
+sale or burn Gemini credits, so both verify the OIDC token Google signs them
+with. `REQUIRE_OIDC=true` is **enabled on the deployed service** and both paths
+were re-tested end to end afterwards: an unauthenticated call gets 403, while
+Pub/Sub and Cloud Scheduler still get through.
 
-Owner sign-in (Firebase Auth on the client, token verification on the API) is
-genuinely not built. It is the largest remaining gap.
+The session secret lives in Secret Manager, not an environment variable.
+
+Owner sign-in is a **passcode, not an identity system** — one owner, one shop,
+one phone. It is the right shape for the user and vastly better than an open
+ledger, but Firebase Auth on a phone number is the stronger successor and the
+obvious next step.
 
 ## Repo layout
 

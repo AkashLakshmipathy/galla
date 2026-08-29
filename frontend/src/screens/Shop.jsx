@@ -46,7 +46,17 @@ export function Shop({ onToast }) {
     <div className="px-gutter pt-2 space-y-5">
       <h1 className="text-screen font-bold pt-1">Shop</h1>
 
-      <Card className="p-cardpad pt-6">
+      {exposure && exposure.limit === 0 && (
+        <Card className="p-cardpad">
+          <div className="text-supplier font-bold">No customers yet</div>
+          <p className="text-row text-text-2 mt-2">
+            Photograph a page of your khata and accounts open themselves, with
+            their balances. Until then there is nothing to guard.
+          </p>
+        </Card>
+      )}
+
+      <Card className={`p-cardpad pt-6 ${exposure && exposure.limit === 0 ? "hidden" : ""}`}>
         <SectionLabel className="text-center">Credit exposure</SectionLabel>
         <Gauge outstanding={exposure?.outstanding ?? 0} limit={exposure?.limit ?? 1} />
         <div className="mt-5">

@@ -184,3 +184,29 @@ def test_a_tamil_name_stays_readable_even_with_an_opaque_id(seeded):
     proposed = provisioning.resolve_party("அன்பரசு").proposed
     assert proposed["name"] == "அன்பரசு"
     assert proposed["name_ta"] == "அன்பரசு"
+
+
+def test_the_suppliers_printed_total_wins_over_our_arithmetic(seeded):
+    """Rounding GST per line drifts a rupee or two from the supplier's own sum.
+    The invoice is the document the shop will be asked to pay, so the paper wins
+    and the difference is recorded rather than quietly absorbed."""
+    from agents.purchase_entry_agent import _totals
+    lines = [{"amount": 19600, "gst_rate": 28}, {"amount": 15210, "gst_rate": 18},
+             {"amount": 9120, "gst_rate": 18}, {"amount": 3180, "gst_rate": 18},
+             {"amount": 1950, "gst_rate": 18}]
+
+    ours = _totals(lines)
+    theirs = _totals(lines, {"total": 59849})
+
+    assert ours["total"] == ours["computed_total"]
+    assert theirs["total"] == 59849, "what the shop actually owes"
+    assert theirs["computed_total"] == ours["computed_total"]
+    assert theirs["rounding_difference"] == 59849 - ours["computed_total"]
+
+
+def test_no_printed_total_falls_back_to_our_own_sum(seeded):
+    from agents.purchase_entry_agent import _totals
+    lines = [{"amount": 1000, "gst_rate": 18}]
+    t = _totals(lines, {"total": None})
+    assert t["total"] == t["computed_total"] == 1180
+    assert "rounding_difference" not in t
