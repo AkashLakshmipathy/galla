@@ -44,12 +44,20 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+
   const isRecord = item?.field === "party_id" || item?.field === "sku_id";
+  // Which *record* this belongs to is worth changing whatever field the agent
+  // happened to flag. It flagged an amount because it was unsure of the digits,
+  // but it may equally have put the row on the wrong man's account — and
+  // offering only a keypad leaves no way to say so.
+  const kind = item?.source_type === "purchase" ? "sku" : "party";
+  const wantsParties = open && kind === "party";
+  const wantsCatalog = open && kind === "sku";
 
   const { data: parties } = usePolling(api.parties,
-    { interval: 0, active: open && item?.field === "party_id" });
+    { interval: 0, active: wantsParties, deps: [wantsParties] });
   const { data: catalog } = usePolling(api.inventory,
-    { interval: 0, active: open && item?.field === "sku_id" });
+    { interval: 0, active: wantsCatalog, deps: [wantsCatalog] });
 
   useEffect(() => {
     if (open) {
@@ -59,7 +67,7 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
   }, [open, item?.item_id]);
 
   const options = useMemo(() => {
-    const rows = item?.field === "party_id"
+    const rows = kind === "party"
       ? (parties?.parties ?? []).map((p) => ({
           id: p.party_id, label: p.name,
           hint: p.credit?.outstanding ? `owes ${inr(p.credit.outstanding)}` : "" }))
@@ -70,7 +78,7 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
     return needle
       ? rows.filter((r) => (r.label ?? "").toLowerCase().includes(needle))
       : rows;
-  }, [parties, catalog, search, item?.field]);
+  }, [parties, catalog, search, kind]);
 
   if (!item) return null;
 
@@ -86,8 +94,7 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose}
-           title={FIELD_TITLE[item.field] ?? "Correct this"}>
+    <Sheet open={open} onClose={onClose} title="Fix what the agent read">
       <div className="px-gutter pb-8">
         <Card className="p-cardpad">
           <div className="text-meta text-text-2">The agent read</div>
@@ -97,11 +104,15 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
           </div>
         </Card>
 
-        {isRecord ? (
+        <div className="text-meta font-semibold text-text-3 uppercase tracking-wide
+                        px-1 mt-5 mb-2">
+          {kind === "party" ? "Whose account is this?" : "Which item is this?"}
+        </div>
+        <>
           <>
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder={item.field === "party_id"
+              placeholder={kind === "party"
                 ? "Search your accounts" : "Search your items"}
               className="w-full bg-fill-3 rounded-full px-4 h-11 mt-3.5 text-body
                          outline-none placeholder:text-text-3"
@@ -110,7 +121,7 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
                             overflow-y-auto no-scrollbar">
               {options.map((o) => (
                 <button key={o.id} disabled={busy}
-                        onClick={() => send(item.field === "party_id"
+                        onClick={() => send(kind === "party"
                           ? { party_id: o.id } : { sku_id: o.id })}
                         className="w-full px-[18px] py-[13px] text-left border-b
                                    border-separator last:border-0 active:bg-separator">
@@ -120,30 +131,40 @@ export function CorrectSheet({ open, item, onClose, onResolved }) {
               ))}
               {options.length === 0 && (
                 <div className="px-[18px] py-4 text-row text-text-2">
-                  Nothing matches. Type the correct name below.
+                  {search.trim()
+                    ? `Nothing matches "${search.trim()}".`
+                    : "No accounts yet."}
                 </div>
               )}
             </div>
-            <input
-              value={typed} onChange={(e) => setTyped(e.target.value)}
-              placeholder={item.field === "party_id"
-                ? "…or type a name to open a new account"
-                : "…or type the correct item name"}
-              className="w-full bg-card rounded-input px-4 h-12 mt-3 text-body
-                         font-semibold outline-none placeholder:text-text-3
-                         placeholder:font-normal"
-            />
           </>
-        ) : (
+        </>
+
+        {!isRecord && (
           <>
-            <Card className="p-cardpad mt-3.5">
-              <div className="text-meta text-text-2">The correct figure</div>
-              <div className="text-verdict font-bold tnum mt-1">
+            <div className="text-meta font-semibold text-text-3 uppercase
+                            tracking-wide px-1 mt-5 mb-2">
+              {FIELD_TITLE[item.field] ?? "The correct value"}
+            </div>
+            <Card className="p-cardpad">
+              <div className="text-verdict font-bold tnum">
                 {typed ? inr(typed) : "₹0"}
               </div>
             </Card>
             <Keypad value={typed} onChange={setTyped} />
           </>
+        )}
+
+        {isRecord && (
+          <input
+            value={typed} onChange={(e) => setTyped(e.target.value)}
+            placeholder={kind === "party"
+              ? "…or type a name to open a new account"
+              : "…or type the correct item name"}
+            className="w-full bg-card rounded-input px-4 h-12 mt-3 text-body
+                       font-semibold outline-none placeholder:text-text-3
+                       placeholder:font-normal"
+          />
         )}
 
         {(item.alternatives ?? []).length > 1 && !isRecord && (
