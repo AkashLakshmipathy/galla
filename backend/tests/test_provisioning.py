@@ -454,3 +454,94 @@ def test_the_demo_still_has_its_fixtures(seeded):
     import agents.khata_digitizer_agent as khata
     assert khata.DEMO_MODE is True
     assert khata._fixture().get("rows")
+
+
+# ---------------------------------------- pages chain by their balances
+def test_the_carried_balance_identifies_the_account(seeded):
+    """A khata's pages chain: what one page closes at, the next opens with. That
+    makes B/F an identifier — and a better one than the name, which gets read
+    three different ways across three pages of the same man's account."""
+    db().collection("parties").document("selvam").update(
+        {"credit.outstanding": 26992})
+    # The name is badly misread, as real handwriting is.
+    r = provisioning.resolve_party("M. Nalathambi", opening_balance=26992)
+    assert r.action == provisioning.USE
+    assert r.existing_id == "selvam"
+
+
+def test_the_balance_outranks_a_confident_wrong_name(seeded):
+    """Two customers, and the page carries the other one's balance. The figure
+    wins: ₹26,992 is ₹26,992 whatever the handwriting looks like."""
+    db().collection("parties").document("kumar").update(
+        {"credit.outstanding": 26992})
+    r = provisioning.resolve_party("Selvam", opening_balance=26992)
+    assert r.existing_id == "kumar"
+
+
+def test_two_accounts_on_the_same_figure_is_a_coincidence_not_evidence(seeded):
+    """Guessing between them would put one man's purchases on another's account."""
+    db().collection("parties").document("selvam").update({"credit.outstanding": 5000})
+    db().collection("parties").document("kumar").update({"credit.outstanding": 5000})
+    assert provisioning.party_by_balance(5000) is None
+
+
+def test_a_page_with_no_carried_balance_falls_back_to_the_name(seeded):
+    r = provisioning.resolve_party("Selvam", opening_balance=None)
+    assert r.existing_id == "selvam"
+
+
+def test_a_zero_carried_balance_proves_nothing(seeded):
+    """Every new account starts at zero; it identifies nobody."""
+    assert provisioning.party_by_balance(0) is None
+
+
+def test_a_new_account_starts_from_the_pages_brought_forward_figure(seeded):
+    """Dropping B/F leaves the account on a balance no later page's B/F will
+    match, and the pages stop chaining."""
+    from agents import router
+    record = router.handle("khata_page", {})
+    ref = db().collection("khata_imports").document(record["import_id"])
+    rows = [r for r in ref.get().to_dict()["rows"]
+            if r.get("new_party") and not r.get("near_miss")][:1]
+    for r in rows:
+        r["status"] = "confirmed"
+    ref.update({"rows": rows, "opening_balance": 19847,
+                "page_date": "2026-07-01"})
+
+    result = commit_khata_import(record["import_id"])
+
+    party_id = result["created_parties"][0]
+    party = db().collection("parties").document(party_id).get().to_dict()
+    entries = [s.to_dict() for s in db().collection("ledger").stream()
+               if s.to_dict()["party_id"] == party_id]
+    carried = next(e for e in entries if e["type"] == "opening_balance")
+    assert carried["amount"] == 19847
+    assert party["credit"]["outstanding"] == 19847 + sum(
+        int(r["amount"]) for r in rows if r["entry_type"] != "payment_received")
+
+
+def test_the_account_ends_on_the_balance_written_on_the_page(seeded):
+    """The shopkeeper's closing figure is what he and his customer argue from.
+    A page whose lines we could not fully read must still leave the account
+    where the paper says, or the next page's B/F will not match."""
+    from agents import router
+    record = router.handle("khata_page", {})
+    ref = db().collection("khata_imports").document(record["import_id"])
+    rows = [r for r in ref.get().to_dict()["rows"]
+            if r.get("new_party") and not r.get("near_miss")][:1]
+    rows[0]["status"] = "confirmed"
+    rows[0]["amount"] = 500
+    rows[0]["entry_type"] = "sale_credit"
+    ref.update({"rows": rows, "opening_balance": 19847,
+                "closing_balance": 26992, "page_date": "2026-07-01"})
+
+    result = commit_khata_import(record["import_id"])
+
+    party_id = result["created_parties"][0]
+    party = db().collection("parties").document(party_id).get().to_dict()
+    assert party["credit"]["outstanding"] == 26992
+    # ...and the gap is a visible, labelled entry, not a silent nudge
+    assert result["reconciled_by"] == 26992 - (19847 + 500)
+    adjustment = next(s.to_dict() for s in db().collection("ledger").stream()
+                      if "could not be read" in (s.to_dict().get("note") or ""))
+    assert adjustment["amount"] == abs(result["reconciled_by"])

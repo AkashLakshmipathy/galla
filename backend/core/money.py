@@ -13,8 +13,37 @@ _TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
          "eighty", "ninety"]
 
 
-def inr(amount: float | int) -> str:
-    """₹1,12,500 — lakh/crore grouping, never thousands grouping."""
+def parse_amount(value) -> float:
+    """'₹4,250' / 'Rs 4,250' / 4250 -> 4250.0.
+
+    The confirm queue shows the owner a formatted amount and hands back whatever
+    he tapped, so the value coming in may be display text.
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+    cleaned = re.sub(r"[^\d.-]", "", str(value or ""))
+    try:
+        return float(cleaned) if cleaned not in {"", "-", "."} else 0.0
+    except ValueError:
+        return 0.0
+
+
+def pdf_text(text: str) -> str:
+    """ReportLab's built-in fonts have no rupee glyph, and an embedded font is a
+    lot of bytes for one character. Documents say "Rs" instead — which is what a
+    printed Indian invoice usually says anyway."""
+    return (text or "").replace("\u20b9", "Rs ").replace("Rs  ", "Rs ")
+
+
+def inr(amount) -> str:
+    """₹1,12,500 — lakh/crore grouping, never thousands grouping.
+
+    Coerces rather than raising: this formats model output as often as it does
+    our own arithmetic, and a model that answers "1,575" where a number was asked
+    for should not crash a scan half way through a shop's stack of paper.
+    """
+    if isinstance(amount, str):
+        amount = parse_amount(amount)
     n = int(round(amount or 0))
     sign = "-" if n < 0 else ""
     s = str(abs(n))
@@ -39,28 +68,6 @@ def ddmmyyyy(value: str | date | datetime | None) -> str:
         except ValueError:
             return value
     return value.strftime("%d-%m-%Y")
-
-
-def parse_amount(value) -> float:
-    """'₹4,250' / 'Rs 4,250' / 4250 -> 4250.0.
-
-    The confirm queue shows the owner a formatted amount and hands back whatever
-    he tapped, so the value coming in may be display text.
-    """
-    if isinstance(value, (int, float)):
-        return float(value)
-    cleaned = re.sub(r"[^\d.-]", "", str(value or ""))
-    try:
-        return float(cleaned) if cleaned not in {"", "-", "."} else 0.0
-    except ValueError:
-        return 0.0
-
-
-def pdf_text(text: str) -> str:
-    """ReportLab's built-in fonts have no rupee glyph, and an embedded font is a
-    lot of bytes for one character. Documents say "Rs" instead — which is what a
-    printed Indian invoice usually says anyway."""
-    return (text or "").replace("\u20b9", "Rs ").replace("Rs  ", "Rs ")
 
 
 def gst_split(taxable: float, rate: float, intra_state: bool = True) -> dict:

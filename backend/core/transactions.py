@@ -296,7 +296,15 @@ def commit_khata_import(import_id: str) -> dict:
                 continue
             to_open.setdefault(row["new_party"]["party_id"], row["new_party"])
 
-        balances: dict[str, int] = {pid: 0 for pid in to_open}
+        # A page opens with "B/F" — the balance carried from the previous page.
+        # For an account this import is opening, that figure IS the starting
+        # position; dropping it makes the running total wrong from the first
+        # entry and, worse, leaves the account on a balance that no later page's
+        # B/F will ever match, so the pages stop chaining.
+        opening = record.get("opening_balance")
+        opening = int(round(float(opening))) if opening is not None else 0
+        balances: dict[str, int] = {pid: (opening if len(to_open) == 1 else 0)
+                                    for pid in to_open}
         for row in confirmed:
             party_id = row.get("party_id")
             if party_id and party_id not in balances:
@@ -308,6 +316,21 @@ def commit_khata_import(import_id: str) -> dict:
         # ---- writes --------------------------------------------------------
         created_parties = [provisioning.create_party(txn, proposed, import_id)
                            for proposed in to_open.values()]
+
+        # The brought-forward figure is itself a ledger fact: it is what the
+        # customer already owed when the page began.
+        if opening and len(created_parties) == 1:
+            carried = ids.entry_id()
+            txn.set(_ledger_ref(carried), {
+                "entry_id": carried, "party_id": created_parties[0],
+                "date": record.get("page_date") or _today(),
+                "type": "opening_balance", "amount": opening, "direction": "debit",
+                "balance_after": opening,
+                "ref": {"type": "khata_import", "id": import_id},
+                "source": "khata_import",
+                "note": f"Brought forward from page {record.get('page_no') or ''}".strip(),
+                "created_at": datetime.now(timezone.utc),
+            })
         for row in confirmed:
             if not row.get("party_id") and row.get("new_party") \
                     and not row.get("near_miss"):
@@ -337,16 +360,48 @@ def commit_khata_import(import_id: str) -> dict:
             row["ledger_entry_id"] = entry_id
             posted += 1
 
+        # The figure the shopkeeper wrote at the bottom is what he and his
+        # customer will argue from, so it is what the account must end on —
+        # exactly as a supplier's printed total outranks our own line
+        # arithmetic. When our reading does not reach it, the shortfall is
+        # posted as its own labelled entry rather than quietly absorbed, and it
+        # is what keeps one page's close equal to the next page's B/F.
+        stated_close = record.get("closing_balance")
+        adjustment = 0
+        if stated_close is not None and len(balances) == 1:
+            party_id = next(iter(balances))
+            stated_close = int(round(float(stated_close)))
+            adjustment = stated_close - balances[party_id]
+            if adjustment:
+                entry_id = ids.entry_id()
+                txn.set(_ledger_ref(entry_id), {
+                    "entry_id": entry_id, "party_id": party_id,
+                    "date": record.get("page_date") or _today(),
+                    "type": "sale_credit" if adjustment > 0 else "payment_received",
+                    "amount": abs(adjustment),
+                    "direction": "debit" if adjustment > 0 else "credit",
+                    "balance_after": stated_close,
+                    "ref": {"type": "khata_import", "id": import_id},
+                    "source": "khata_import",
+                    "note": ("Adjusted to the balance written on the page — "
+                             "some entries could not be read"),
+                    "created_at": datetime.now(timezone.utc),
+                })
+                balances[party_id] = stated_close
+                posted += 1
+
         for party_id, balance in balances.items():
             txn.update(db().collection("parties").document(party_id),
                        {"credit.outstanding": balance,
                         "updated_at": datetime.now(timezone.utc)})
         txn.update(import_ref, {"status": "committed", "rows": rows,
+                                "reconciled_by": adjustment,
                                 "posted_count": posted,
                                 "created_parties": created_parties,
                                 "committed_at": datetime.now(timezone.utc)})
         return {"import_id": import_id, "posted": posted,
                 "created_parties": created_parties,
+                "reconciled_by": adjustment,
                 "parties_touched": len(balances)}
 
     return run_transaction(txn_body)

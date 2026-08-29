@@ -29,7 +29,11 @@ credit book (khata). Read it exactly as the shopkeeper wrote it.
 HOW THESE PAGES ARE LAID OUT
 
 One page is ONE customer's running account, not a list of different people. The
-customer's name is written at the top, usually with a date beside it.
+customer's name is written at the top, usually with a date beside it, and often
+underlined. Read it carefully and letter by letter — it is a South Indian name
+and it will be written the same way on the customer's other pages, so a careless
+reading splits one man's account in two. Report it exactly as written; do not
+tidy it, translate it, or guess at a more familiar-looking name.
 
 Under the name comes "B/F" or "B.F" — the balance brought forward from the
 previous page. It is the starting figure, NOT something bought that day.
@@ -184,7 +188,8 @@ def arithmetic_check(extraction: dict, rows: list[dict]) -> dict:
             "difference": difference, "balances": difference == 0}
 
 
-def _resolve_rows(raw_rows: list[dict], page_party: str | None = None) -> list[dict]:
+def _resolve_rows(raw_rows: list[dict], page_party: str | None = None,
+                  opening_balance: float | None = None) -> list[dict]:
     """Attach the page's party to every row — or propose opening an account.
 
     An old khata is full of names the system has never seen, and each one is a
@@ -207,7 +212,8 @@ def _resolve_rows(raw_rows: list[dict], page_party: str | None = None) -> list[d
         # One page is one customer: the name at the top governs every line.
         name_raw = raw.get("party_name_raw") or page_party or ""
         entry_type = raw.get("entry_type") or "sale_credit"
-        resolution = provisioning.resolve_party(name_raw, entry_type, index)
+        resolution = provisioning.resolve_party(name_raw, entry_type, index,
+                                                opening_balance=opening_balance)
 
         row = {
             "row_id": f"r{position}",
@@ -267,7 +273,8 @@ def run(payload: dict, trace) -> dict:
         extraction, result = _extract(payload)
         s.from_llm(result)
         rows = _resolve_rows(extraction.get("rows") or [],
-                             extraction.get("party_name_raw"))
+                             extraction.get("party_name_raw"),
+                             extraction.get("opening_balance"))
         unread = not rows
         image_uri = payload.get("media_path") or payload.get("page_image_url")
         import_id = payload.get("import_id") or ids.import_id()

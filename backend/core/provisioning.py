@@ -328,10 +328,43 @@ def _model_decides_party(name_raw: str, candidates: list[dict]
     return party_id, float(data.get("confidence") or 0)
 
 
+def party_by_balance(opening: float | None) -> str | None:
+    """Whose account is this page, judged by its brought-forward figure.
+
+    A khata's pages chain: the balance one page closes at is the balance the
+    next one opens with. That makes "B/F" an identifier — a far better one than
+    the name, because a scrawled name is read three different ways across three
+    pages while ₹26,992 is ₹26,992 whatever the handwriting is like.
+
+    Only an exact match counts, and only when exactly one account sits on that
+    figure. Two customers who happen to owe the same amount is a coincidence,
+    not evidence, and guessing between them would put one man's purchases on
+    another man's account.
+    """
+    if opening is None:
+        return None
+    target = int(round(float(opening)))
+    if target <= 0:
+        return None
+    found = [snap.id for snap in db().collection("parties").stream()
+             if not (snap.to_dict() or {}).get("merged_into")
+             and int(((snap.to_dict() or {}).get("credit") or {})
+                     .get("outstanding") or 0) == target]
+    return found[0] if len(found) == 1 else None
+
+
 def resolve_party(name_raw: str, entry_type: str = "sale_credit",
-                  index: list | None = None, use_model: bool = True) -> Resolution:
+                  index: list | None = None, use_model: bool = True,
+                  opening_balance: float | None = None) -> Resolution:
     index = index if index is not None else parties.index()
     party_id, score = parties.match(name_raw, index)
+
+    # The balance the page carries forward outranks the name. Handwriting is
+    # ambiguous; an exact rupee figure is not.
+    by_balance = party_by_balance(opening_balance)
+    if by_balance and (not party_id or party_id != by_balance):
+        parties.learn_alias(by_balance, name_raw)
+        return Resolution(USE, by_balance, 1.0)
 
     if party_id and score >= CERTAIN:
         parties.learn_alias(party_id, name_raw)
