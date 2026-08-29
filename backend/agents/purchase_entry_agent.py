@@ -65,7 +65,10 @@ def _extract(payload: dict) -> tuple[dict, object]:
     if image_uri:
         blob = storage.get_bytes(image_uri)
         if blob:
-            media.append(Media(storage.content_type_of(image_uri), blob))
+            # Shrunk for the model only; the full photograph stays in storage.
+            payload, kind = storage.for_model(
+                blob, storage.content_type_of(image_uri))
+            media.append(Media(kind, payload))
     result = ask("purchase_entry", INSTRUCTION,
                  "Read this supplier invoice and return the JSON.",
                  media=media, fallback=_fixture(),

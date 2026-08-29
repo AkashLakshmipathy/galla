@@ -93,7 +93,10 @@ def _perceive(payload: dict) -> tuple[dict, object]:
     if media_uri:
         blob = storage.get_bytes(media_uri)
         if blob:
-            media.append(Media(storage.content_type_of(media_uri), blob))
+            # Shrunk for the model only; the full photograph stays in storage.
+            payload, kind = storage.for_model(
+                blob, storage.content_type_of(media_uri))
+            media.append(Media(kind, payload))
 
     # A demo fixture ships its own known-good transcription; that is the
     # deterministic stand-in for the model, not a shortcut around it — with

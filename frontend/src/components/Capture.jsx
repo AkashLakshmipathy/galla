@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "../lib/api.js";
+import { shrinkForUpload } from "../lib/images.js";
 import { FatPill, Sheet } from "./ui.jsx";
 
 /* Getting paper into the app.
@@ -66,7 +67,8 @@ export function CaptureSheet({ open, onClose, onStarted, onError }) {
     if (!files?.length) return;
     setBusy(true);
     try {
-      const result = await api.scan(files, which);
+      const smaller = await Promise.all(files.map(shrinkForUpload));
+      const result = await api.scan(smaller, which);
       setDone((n) => n + result.count);
       onStarted?.(result);
     } catch (err) {

@@ -9,6 +9,7 @@ so the frontend never needs signing credentials.
 from __future__ import annotations
 
 import mimetypes
+import os
 import shutil
 from functools import lru_cache
 from pathlib import Path
@@ -64,6 +65,46 @@ def get_bytes(path_or_uri: str) -> bytes | None:
 
 def content_type_of(path_or_uri: str) -> str:
     return mimetypes.guess_type(path_or_uri)[0] or "application/octet-stream"
+
+
+# A phone photograph of a bill is three or four megabytes and four thousand
+# pixels wide. Handwriting and print are both legible far below that, and every
+# one of those megabytes is paid for twice — once uploading to the model and
+# once being processed by it. A longest edge of 1600px keeps a khata page
+# readable while cutting the payload by roughly an order of magnitude, which is
+# most of the wait the owner feels after pressing the shutter.
+MODEL_MAX_EDGE = int(os.environ.get("MODEL_IMAGE_MAX_EDGE", "1600"))
+MODEL_JPEG_QUALITY = int(os.environ.get("MODEL_IMAGE_QUALITY", "82"))
+
+
+def for_model(blob: bytes, content_type: str) -> tuple[bytes, str]:
+    """Shrink an image to something a model can read quickly.
+
+    Returns the original untouched if it is already small, is not an image, or
+    if anything at all goes wrong — a slow scan beats a failed one. The full-size
+    photograph stays in storage either way, so the owner can always check a
+    figure against the original.
+    """
+    if not content_type.startswith("image/") or len(blob) < 400_000:
+        return blob, content_type
+    try:
+        from io import BytesIO
+
+        from PIL import Image, ImageOps
+
+        image = Image.open(BytesIO(blob))
+        image = ImageOps.exif_transpose(image)     # honour the phone's rotation
+        if max(image.size) <= MODEL_MAX_EDGE:
+            return blob, content_type
+        image.thumbnail((MODEL_MAX_EDGE, MODEL_MAX_EDGE), Image.LANCZOS)
+        buffer = BytesIO()
+        image.convert("RGB").save(buffer, format="JPEG",
+                                  quality=MODEL_JPEG_QUALITY, optimize=True)
+        smaller = buffer.getvalue()
+        return (smaller, "image/jpeg") if len(smaller) < len(blob) \
+            else (blob, content_type)
+    except Exception:                                     # noqa: BLE001
+        return blob, content_type
 
 
 def stage_fixture(source: Path, path: str) -> str:
