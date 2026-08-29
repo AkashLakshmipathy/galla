@@ -23,42 +23,61 @@ from core.config import (CONFIDENCE_THRESHOLD, DEMO_MODE, FIXTURES_DIR,
 from core.firestore_client import db
 from core.money import inr
 
-INSTRUCTION = """You read pages from a handwritten Indian shop credit ledger (khata).
-Entries are in Tamil and English, one per ruled line, oldest first. A page has a
-party name, a date, an amount, and whether it was goods taken on credit or a
-payment made.
+INSTRUCTION = """You read one page from an Indian hardware shop's handwritten
+credit book (khata). Read it exactly as the shopkeeper wrote it.
 
-Return ONLY JSON:
+HOW THESE PAGES ARE LAID OUT
+
+One page is ONE customer's running account, not a list of different people. The
+customer's name is written at the top, usually with a date beside it.
+
+Under the name comes "B/F" or "B.F" — the balance brought forward from the
+previous page. It is the starting figure, NOT something bought that day.
+
+Then the goods, one per line: a description with the quantity written into it
+("SIF 8233 4Lt", "1 1/4 MS Nails 1/4kg", "4\" wood cutter 7 Nos"), and the
+amount for that line in the right-hand column.
+
+Under a group of lines the shopkeeper writes a running total — sometimes labelled
+"total", often just underlined. It equals the balance so far plus the lines above
+it. Payments received are written the same way and SUBTRACT from the running
+total. A page may carry several dates; entries continue under the last date
+written until a new one appears.
+
+WHAT TO RETURN
+
 {
-  "page_no": <number printed on the page, or null>,
+  "party_name_raw": "<the name at the top, exactly as written>",
+  "page_date": "<YYYY-MM-DD of the first date on the page, or null>",
+  "opening_balance": <the B/F figure, or null if there is none>,
+  "closing_balance": <the final figure at the bottom, or null>,
   "rows": [
-    {"party_name_raw": "<name exactly as written>",
-     "date": "<YYYY-MM-DD>",
-     "amount": <number>,
+    {"description_raw": "<the line exactly as written, quantity included>",
+     "date": "<YYYY-MM-DD — carry the last date on the page forward>",
+     "amount": <the amount for this line>,
      "entry_type": "sale_credit" | "payment_received",
-     "confidence": <0-1 how legible this row was>,
+     "confidence": <0-1 for how legible this line was>,
      "bbox": {"x": <0-1>, "y": <0-1>, "w": <0-1>, "h": <0-1>},
-     "alternatives": [<the amount you read, then the next most likely readings>]}
+     "alternatives": [<your reading, then the next most likely>]}
   ]
 }
-`bbox` must be the row's rectangle on the image, normalised 0-1 from the top-left
-— the owner taps a row to see the handwriting it came from, so this has to be
-right. Where a digit is genuinely ambiguous, lower the confidence and list the
-alternative readings; do not guess confidently.
 
-Two things these pages do that will mislead you if you let them:
+THE RULE THAT MATTERS MOST
 
-RUNNING BALANCES ARE NOT TRANSACTIONS. A khata usually carries a running total
-down the right-hand side, and often a carried-forward figure at the top and a
-total at the bottom. Those are the *result* of the entries, not entries
-themselves. Report only what was actually taken or paid on the day. A number
-that equals roughly the sum of the rows above it is a balance — leave it out.
-Reporting balances as transactions doubles a man's debt.
+`rows` contains ONLY things bought and payments made. It must NOT contain the
+B/F figure, any running total, any subtotal, or the closing balance. Those are
+arithmetic *about* the entries, and reporting one as a transaction charges a man
+money he never spent. If a figure roughly equals the sum of what is above it, it
+is a total — put it in `opening_balance` or `closing_balance`, or leave it out.
 
-EACH ROW HAS ITS OWN DATE. Dates are usually written once and then implied down
-the page until the next one appears; carry the last date forward rather than
-stamping every row with the same one. If a row's date is genuinely unknowable,
-use the last date you saw and lower that row's confidence."""
+Anything written on the page that is a payment coming in — "Recd", "paid",
+"cash", a figure that makes the running total go *down* — is
+"payment_received". Everything else is "sale_credit".
+
+`bbox` is the line's rectangle on the photo, normalised 0-1 from the top left;
+the owner taps a row to see the handwriting it came from. Where a digit is
+genuinely ambiguous lower the confidence and list the alternative readings. The
+page may be photographed at an angle or upside down — read it anyway."""
 
 
 def _fixture() -> dict:
@@ -75,6 +94,25 @@ def _fixture() -> dict:
     return json.loads(path.read_text("utf-8")) if path.exists() else {}
 
 
+RECHECK_PROMPT = """Your reading does not agree with the page's own arithmetic.
+
+You read the balance brought forward as {opening} and the closing figure as
+{closing}. The entries you listed come to {bought} bought and {paid} paid, which
+would close at {expected} — off by {difference}.
+
+The shopkeeper's own totals are right; the misreading is yours. A difference like
+this is almost always one of:
+  - a dropped leading digit (575 read where the page says 1575)
+  - a line you skipped altogether
+  - a running total mistaken for an entry, or an entry mistaken for a total
+  - a payment read as a purchase, or the reverse
+
+Look again at the amounts column and return the SAME JSON structure, corrected so
+that opening + bought - paid equals the closing figure. Do not invent a line to
+make it balance; if you genuinely cannot make it agree, return your best reading
+and lower the confidence on the lines you are least sure of."""
+
+
 def _extract(payload: dict) -> tuple[dict, object]:
     image_uri = payload.get("media_path") or payload.get("page_image_url")
     media: list[Media] = []
@@ -88,11 +126,66 @@ def _extract(payload: dict) -> tuple[dict, object]:
                  model=GEMINI_MODEL_FAST)
     data = result.data if isinstance(result.data, dict) and result.data.get("rows") \
         else _fixture()
+
+    # The page checks the machine. If our reading does not reproduce the
+    # shopkeeper's own closing figure, something was misread — so say exactly by
+    # how much and let the model look again. One retry: a second failure means
+    # the page genuinely needs a human, and asking a third time only spends money.
+    check = arithmetic_check(data, _amounts_only(data.get("rows") or []))
+    if media and check.get("checked") and not check["balances"]:
+        retry = ask("khata_digitizer", INSTRUCTION,
+                    RECHECK_PROMPT.format(
+                        opening=check["opening"], closing=check["closing"],
+                        bought=check["bought"], paid=check["paid"],
+                        expected=check["expected_closing"],
+                        difference=abs(check["difference"])),
+                    media=media, fallback=None, model=GEMINI_MODEL_FAST)
+        if isinstance(retry.data, dict) and retry.data.get("rows"):
+            second = arithmetic_check(retry.data,
+                                      _amounts_only(retry.data.get("rows") or []))
+            # Keep the second reading only if it is actually better.
+            if second.get("balances") or (
+                    second.get("checked")
+                    and abs(second["difference"]) < abs(check["difference"])):
+                return retry.data, retry
     return data, result
 
 
-def _resolve_rows(raw_rows: list[dict]) -> list[dict]:
-    """Attach a party to every row — or propose opening an account.
+def _amounts_only(rows: list[dict]) -> list[dict]:
+    """The shape `arithmetic_check` needs, before parties have been resolved."""
+    return [{"amount": int(float(r.get("amount") or 0)),
+             "entry_type": r.get("entry_type") or "sale_credit"} for r in rows]
+
+
+def arithmetic_check(extraction: dict, rows: list[dict]) -> dict:
+    """Does the page's own arithmetic agree with what we read off it?
+
+    A khata writes its running totals down the right-hand side, and those totals
+    are a gift: opening balance, plus everything bought, minus everything paid,
+    must equal the closing figure the shopkeeper wrote himself. When it does, the
+    read is almost certainly right — a missed line or a misread digit would break
+    it. When it does not, something is wrong and the page should be checked
+    before a rupee of it reaches anyone's ledger.
+
+    This is the strongest signal available here, and it costs nothing: the paper
+    is checking the machine.
+    """
+    opening = extraction.get("opening_balance")
+    closing = extraction.get("closing_balance")
+    bought = sum(int(r["amount"]) for r in rows if r["entry_type"] != "payment_received")
+    paid = sum(int(r["amount"]) for r in rows if r["entry_type"] == "payment_received")
+    if opening is None or closing is None:
+        return {"checked": False, "bought": bought, "paid": paid}
+
+    expected = int(opening) + bought - paid
+    difference = int(closing) - expected
+    return {"checked": True, "opening": int(opening), "closing": int(closing),
+            "bought": bought, "paid": paid, "expected_closing": expected,
+            "difference": difference, "balances": difference == 0}
+
+
+def _resolve_rows(raw_rows: list[dict], page_party: str | None = None) -> list[dict]:
+    """Attach the page's party to every row — or propose opening an account.
 
     An old khata is full of names the system has never seen, and each one is a
     person or a firm the shop already trades with. Rather than stalling on them,
@@ -111,13 +204,15 @@ def _resolve_rows(raw_rows: list[dict]) -> list[dict]:
     rows: list[dict] = []
     for position, raw in enumerate(raw_rows, start=1):
         read = float(raw.get("confidence") or 0.9)
-        name_raw = raw.get("party_name_raw") or ""
+        # One page is one customer: the name at the top governs every line.
+        name_raw = raw.get("party_name_raw") or page_party or ""
         entry_type = raw.get("entry_type") or "sale_credit"
         resolution = provisioning.resolve_party(name_raw, entry_type, index)
 
         row = {
             "row_id": f"r{position}",
             "party_name_raw": name_raw,
+            "description_raw": raw.get("description_raw"),
             "party_id": resolution.existing_id,
             "date": raw.get("date"),
             "amount": float(raw.get("amount") or 0),
@@ -171,7 +266,8 @@ def run(payload: dict, trace) -> dict:
     with trace.step("khata_digitizer") as s:
         extraction, result = _extract(payload)
         s.from_llm(result)
-        rows = _resolve_rows(extraction.get("rows") or [])
+        rows = _resolve_rows(extraction.get("rows") or [],
+                             extraction.get("party_name_raw"))
         unread = not rows
         image_uri = payload.get("media_path") or payload.get("page_image_url")
         import_id = payload.get("import_id") or ids.import_id()
@@ -180,8 +276,13 @@ def run(payload: dict, trace) -> dict:
         new_parties = len({r["new_party"]["party_id"] for r in rows
                            if r.get("new_party") and not r.get("near_miss")})
 
+        check = arithmetic_check(extraction, rows)
         record = {
             "import_id": import_id,
+            "party_name_raw": extraction.get("party_name_raw"),
+            "opening_balance": extraction.get("opening_balance"),
+            "closing_balance": extraction.get("closing_balance"),
+            "arithmetic": check,
             "page_no": extraction.get("page_no") or payload.get("page_no"),
             "page_image_url": image_uri,
             "rows": rows,
@@ -201,9 +302,20 @@ def run(payload: dict, trace) -> dict:
             s.status = "error"
             s.summary = ("Could not read this page — take the photo again in "
                          "better light, with the page flat")
+        elif check.get("checked") and not check["balances"]:
+            # The page's own totals disagree with what we read. Something is
+            # missing or misread; none of it should be trusted on sight.
+            s.status = "flagged"
+            s.summary = (f"{extraction.get('party_name_raw') or 'Page'} — the "
+                         f"figures do not add up: the page closes at "
+                         f"{inr(check['closing'])} but these entries make "
+                         f"{inr(check['expected_closing'])}. Check it before posting.")
         else:
             s.status = "flagged" if pending else "done"
-            s.summary = (f"Page {record['page_no']} read — {len(rows)} entries, "
-                         f"{accepted} clear, {pending} to confirm"
-                         + (f", {new_parties} new account(s)" if new_parties else ""))
+            tail = " · totals agree ✓" if check.get("balances") else ""
+            s.summary = (f"{extraction.get('party_name_raw') or 'Page'} — "
+                         f"{len(rows)} entries, {accepted} clear, "
+                         f"{pending} to confirm"
+                         + (f", {new_parties} new account(s)" if new_parties else "")
+                         + tail)
     return record
