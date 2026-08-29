@@ -397,13 +397,41 @@ def commit_khata(import_id: str):
     return serialize.jsonable(commit_khata_import(import_id))
 
 
+FOLDERS = {"voice": "voice", "invoice": "invoices", "khata": "khata"}
+EVENTS = {"invoice": "purchase_inv", "khata": "khata_page", "voice": "sale_order"}
+
+
+async def _store(file: UploadFile, kind: str) -> str:
+    suffix = (file.filename or "").rsplit(".", 1)[-1].lower() or "jpg"
+    path = f"{FOLDERS.get(kind, 'photos')}/{ids.item_id()}.{suffix}"
+    return storage.put_bytes(path, await file.read(),
+                             file.content_type or storage.content_type_of(path))
+
+
 @router.post("/upload")
 async def upload(file: UploadFile = File(...), kind: str = Form("photo")):
     """Camera or voice capture — returns the storage path to hand to /ingest."""
-    suffix = (file.filename or "").rsplit(".", 1)[-1].lower() or "bin"
-    folder = {"voice": "voice", "invoice": "invoices",
-              "khata": "khata"}.get(kind, "photos")
-    path = f"{folder}/{ids.item_id()}.{suffix}"
-    uri = storage.put_bytes(path, await file.read(),
-                            file.content_type or storage.content_type_of(path))
+    uri = await _store(file, kind)
     return {"uri": uri, "path": storage.http_path(uri)}
+
+
+@router.post("/scan")
+async def scan(files: list[UploadFile] = File(...), kind: str = Form("invoice")):
+    """Photograph a stack of paper without waiting for any of it.
+
+    A shop digitising twenty years of records has hundreds of sheets, and making
+    someone watch a spinner for each one is the difference between a tool they
+    use and a tool they abandon. The photograph is stored and the work queued;
+    the response comes back as fast as the upload, and the results appear on the
+    counter as the agents finish. Nothing here waits for a model.
+    """
+    from main import queue_event
+
+    queued = []
+    for file in files:
+        uri = await _store(file, kind)
+        event = EVENTS.get(kind, "purchase_inv")
+        result = queue_event(event, {"media_path": uri})
+        queued.append({**result, "uri": uri,
+                       "path": storage.http_path(uri), "filename": file.filename})
+    return {"queued": queued, "count": len(queued)}

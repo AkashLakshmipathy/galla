@@ -34,6 +34,20 @@ CHAINS = {
 def _sale_order(payload: dict, trace: Trace) -> dict:
     order = intake_agent.run(payload, trace)
     order = stock_pricing_agent.run(order, trace)
+
+    # If nothing in the message resolved to a product, there is no order here to
+    # judge. Running the Credit Guardian anyway would produce a confident-looking
+    # verdict on a zero-rupee order — the machine claiming a decision it has no
+    # basis for, which is worse than admitting it could not read the message.
+    if not any(line.get("sku_id") and line.get("amount") for line in order["lines"]):
+        db().collection("orders").document(order["order_id"]).update(
+            {"status": "unreadable"})
+        order["status"] = "unreadable"
+        trace.waiting("credit_guardian", "Nothing to price — waiting for you")
+        notifier_agent.run({"kind": "approval_card", "order": order}, trace)
+        trace.finish("awaiting_owner")
+        return order
+
     verdict = credit_guardian_agent.run(order["party_id"], order["total"], trace)
     order["credit_verdict"] = verdict
     db().collection("orders").document(order["order_id"]).update(

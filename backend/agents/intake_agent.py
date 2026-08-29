@@ -50,6 +50,20 @@ If a quantity was not stated, use 1 and lower the confidence."""
 
 _SPLIT = re.compile(r"[,;\n]|\band\b|\bplus\b|\bமற்றும்\b")
 
+# How an order actually opens and closes. These are politeness, not merchandise,
+# and a fragment made only of them is not a line the shop should try to price.
+_PLEASANTRIES = {
+    "அண்ணே", "அண்ணா", "தம்பி", "சார்", "வணக்கம்", "அனுப்புங்க", "அனுப்புங்கள்",
+    "வேணும்", "கொடுங்க", "கொடுங்கள்", "please", "sir", "anna", "bro", "boss",
+    "hello", "hi", "thanks", "thank", "you", "send", "give", "need", "want",
+    "me", "us", "the", "some", "also", "then", "ok",
+}
+
+
+def _is_pleasantry(fragment: str) -> bool:
+    words = [w for w in re.split(r"[^\w஀-௿]+", (fragment or "").lower()) if w]
+    return bool(words) and all(w in _PLEASANTRIES for w in words)
+
 
 def _split_fallback(text: str, heard: float = 1.0) -> list[dict]:
     """Deterministic intake. Runs whenever the model is unavailable or fails —
@@ -63,7 +77,7 @@ def _split_fallback(text: str, heard: float = 1.0) -> list[dict]:
     lines: list[dict] = []
     for fragment in _SPLIT.split(text or ""):
         fragment = fragment.strip(" .·-")
-        if len(fragment) < 2:
+        if len(fragment) < 2 or _is_pleasantry(fragment):
             continue
         qty, unit = catalog.parse_qty(fragment)
         lines.append({"name_raw": fragment, "qty": qty, "unit": unit,

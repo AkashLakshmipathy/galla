@@ -120,8 +120,15 @@ def read_token(token: str | None) -> Session | None:
 
 # ------------------------------------------------------------------- shop state
 def is_configured() -> bool:
+    """Is there a shop here at all?
+
+    Deliberately *not* "does it have a passcode". A shop that exists but is
+    unlocked is a perfectly coherent state — an owner testing on a device he
+    keeps in his hand, or a locally-run instance — and conflating the two sent
+    a configured shop back to the setup form.
+    """
     shop = db().collection("shop").document("main").get()
-    return bool(shop.exists and (shop.to_dict() or {}).get("auth"))
+    return bool(shop.exists and (shop.to_dict() or {}).get("name"))
 
 
 def passcode_required() -> bool:

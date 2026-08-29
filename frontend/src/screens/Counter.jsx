@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TraceRelay } from "../components/TraceRelay.jsx";
-import { VerdictInline } from "../components/Verdict.jsx";
+import { VerdictDot, VerdictInline } from "../components/Verdict.jsx";
 import { VoiceBubble } from "../components/VoiceBubble.jsx";
 import { Card, Chevron, EmptyState } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
@@ -24,106 +25,144 @@ function useCounterFeed() {
   return { ...feed, items, chains: fleet?.chains ?? {}, busy };
 }
 
+function DocThumb({ path, kind, tall = false }) {
+  const size = tall ? "w-[44px] h-[56px]" : "w-[34px] h-[44px]";
+  // A voice note has no page to show. A blank sheet of paper would be a lie
+  // about what arrived, so it gets its own mark.
+  if (kind === "order" && !path) {
+    return (
+      <div className={`${size} rounded-[6px] bg-fill-2 shrink-0 flex items-center
+                       justify-center gap-[2px]`} aria-hidden="true">
+        {[7, 13, 9, 15, 8].map((h, i) => (
+          <span key={i} className="w-[2px] rounded-full bg-text-3"
+                style={{ height: `${h}px` }} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className={`${size} rounded-[6px] bg-khata-paper shrink-0 overflow-hidden
+                     shadow-[inset_0_0_0_1px_rgba(0,0,0,.06)]`}>
+      {path && <img src={path} alt="" className="w-full h-full object-cover" />}
+    </div>
+  );
+}
+
 function ThreadItem({ item, chains }) {
   const navigate = useNavigate();
+  const [showTrace, setShowTrace] = useState(false);
   const { kind, data } = item;
   const { data: trace } = usePolling(
     () => (data.trace_id ? api.trace(data.trace_id) : Promise.resolve(null)),
     { interval: 1200, active: Boolean(data.trace_id) }
   );
-  const running = trace?.status === "running";
+  const running = !trace || trace.status === "running";
   const chainKey = { order: "sale_order", purchase: "purchase_inv",
                      khata: "khata_page" }[kind];
+  const steps = trace?.steps ?? [];
+  const flagged = steps.filter((s) => s.status === "flagged").length;
+
+  const open = () => navigate(
+    kind === "order" ? `/orders/${data.order_id}`
+      : kind === "purchase" ? `/purchases/${data.purchase_id}`
+        : `/khata/${data.import_id}`);
+
+  const title = kind === "order" ? (data.party_name ?? data.party_id)
+    : kind === "purchase" ? (data.supplier_name_raw ?? "Supplier bill")
+      : `Khata page ${data.page_no ?? ""}`;
+
+  const line = kind === "order"
+    ? `${data.lines?.length ?? 0} items · ${inr(data.total)}`
+    : kind === "purchase"
+      ? `${data.lines?.length ?? 0} lines · ${inr(data.totals?.total)}`
+      : `${data.auto_accepted_count ?? 0} clear · ${data.needs_confirm_count ?? 0} to confirm`;
+
+  // Only the order status is a snake_case token needing prettifying; the others
+  // are already written as sentences and must not be title-cased.
+  const state = kind === "order"
+    ? (({ awaiting_approval: "Waiting on you", approved: "Approved",
+          rejected: "Declined", fulfilled: "Fulfilled", draft: "Draft",
+          unreadable: "Could not read this — open it" })[data.status]
+       ?? String(data.status ?? "").replace(/_/g, " "))
+    : kind === "purchase"
+      ? (data.stock_applied ? "Stock updated ✓" : "Review and save to stock")
+      : (data.status === "committed" ? "Posted to the ledger ✓" : "Review the page");
 
   return (
-    <div className="space-y-3.5 animate-rise">
-      {kind === "order" && (
-        <Card>
-          <VoiceBubble
-            name={data.party_name ?? data.party_id}
-            tier={data.price_tier}
-            source={data.source}
-            mediaPath={data.source_media_path}
-            transcript={data.transcript}
-            gloss={data.transcript_en}
-          />
-        </Card>
-      )}
-      {kind !== "order" && (
-        <Card className="p-cardpad flex items-center gap-3">
-          <div className="w-[34px] h-[44px] rounded-[6px] bg-khata-paper
-                          shadow-[inset_0_0_0_1px_rgba(0,0,0,.06)] shrink-0" />
-          <div className="min-w-0">
-            <div className="text-body font-semibold truncate">
-              {kind === "purchase"
-                ? data.supplier_name_raw ?? "Supplier bill"
-                : `Khata page ${data.page_no ?? ""}`}
-            </div>
-            <div className="text-meta text-text-3 truncate">
-              {kind === "purchase"
-                ? `Invoice ${data.invoice_no ?? "—"} · ${ago(data.created_at)}`
-                : `${data.rows?.length ?? 0} entries · ${ago(data.created_at)}`}
-            </div>
-          </div>
-        </Card>
+    <Card className="animate-rise overflow-hidden">
+      {kind === "order" && running && (
+        <VoiceBubble
+          name={data.party_name ?? data.party_id} tier={data.price_tier}
+          source={data.source} mediaPath={data.source_media_path}
+          transcript={data.transcript} gloss={data.transcript_en}
+        />
       )}
 
-      <Card className="p-cardpad">
-        <TraceRelay trace={trace} chain={chains[chainKey] ?? []} />
-      </Card>
-
-      {!running && kind === "order" && data.credit_verdict && (
-        <Card className="p-cardpad space-y-3.5">
-          <VerdictInline verdict={data.credit_verdict} />
-          <button onClick={() => navigate(`/orders/${data.order_id}`)}
-                  className="w-full flex items-center gap-3 pt-1">
-            <div className="flex-1 text-left">
-              <div className="text-body font-semibold">
-                {data.lines?.length ?? 0} items · {inr(data.total)}
+      {/* While the agents work the strip is the point of the screen. Once they
+          are done it collapses to a single line, because five finished bills
+          should read as five rows, not fifteen cards. */}
+      {running ? (
+        <div className="p-cardpad">
+          {kind !== "order" && (
+            <div className="flex items-center gap-3 mb-3.5">
+              <DocThumb path={data.source_image_path ?? data.page_image_path}
+                        kind={kind} />
+              <div className="min-w-0">
+                <div className="text-body font-semibold truncate">{title}</div>
+                <div className="text-meta text-text-3">{ago(item.at)}</div>
               </div>
-              <div className="text-meta text-text-3 capitalize">
-                {String(data.status ?? "").replace(/_/g, " ")}
+            </div>
+          )}
+          <TraceRelay trace={trace} chain={chains[chainKey] ?? []} />
+        </div>
+      ) : (
+        <>
+          <button onClick={open}
+                  className="w-full p-cardpad flex items-center gap-3 text-left">
+            <DocThumb path={data.source_image_path ?? data.page_image_path}
+                      kind={kind} tall />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {kind === "order" && data.credit_verdict && (
+                  <VerdictDot decision={data.credit_verdict.decision} />
+                )}
+                <span className="text-body font-semibold truncate">{title}</span>
               </div>
+              <div className="text-body font-semibold tnum mt-0.5">{line}</div>
+              <div className="text-meta text-text-3">{state}</div>
             </div>
             <Chevron />
           </button>
-        </Card>
-      )}
 
-      {!running && kind === "purchase" && (
-        <Card>
-          <button onClick={() => navigate(`/purchases/${data.purchase_id}`)}
-                  className="w-full flex items-center gap-3 p-cardpad">
-            <div className="flex-1 text-left">
-              <div className="text-body font-semibold">
-                {data.lines?.length ?? 0} lines · {inr(data.totals?.total)}
-              </div>
-              <div className="text-meta text-text-3">
-                {data.stock_applied ? "Stock updated ✓" : "Review and save to stock"}
-              </div>
+          {kind === "order" && data.credit_verdict && (
+            <div className="px-cardpad pb-cardpad -mt-1">
+              <VerdictInline verdict={data.credit_verdict} />
             </div>
-            <Chevron />
-          </button>
-        </Card>
-      )}
+          )}
 
-      {!running && kind === "khata" && (
-        <Card>
-          <button onClick={() => navigate(`/khata/${data.import_id}`)}
-                  className="w-full flex items-center gap-3 p-cardpad">
-            <div className="flex-1 text-left">
-              <div className="text-body font-semibold">
-                {data.auto_accepted_count} clear · {data.needs_confirm_count} to confirm
-              </div>
-              <div className="text-meta text-text-3">
-                {data.status === "committed" ? "Posted to the ledger ✓" : "Review the page"}
-              </div>
-            </div>
-            <Chevron />
+          <button
+            onClick={() => setShowTrace((v) => !v)}
+            className="w-full px-cardpad py-2.5 flex items-center gap-2
+                       border-t border-separator text-meta text-text-2"
+          >
+            <span className={`w-[6px] h-[6px] rounded-full
+              ${flagged ? "bg-amber" : "bg-ink"}`} />
+            <span className="flex-1 text-left">
+              {steps.length} agents ran
+              {flagged ? ` · ${flagged} flagged something` : " · nothing flagged"}
+            </span>
+            <span className="text-accent font-semibold">
+              {showTrace ? "Hide" : "Show"}
+            </span>
           </button>
-        </Card>
+          {showTrace && (
+            <div className="px-cardpad pb-cardpad pt-1">
+              <TraceRelay trace={trace} chain={chains[chainKey] ?? []} />
+            </div>
+          )}
+        </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -144,10 +183,7 @@ export function Counter() {
       )}
 
       {items.map((item) => (
-        <div key={`${item.kind}-${item.id}`} className="pb-1">
-          <div className="text-micro text-text-3 pb-2 pl-1">{ago(item.at)}</div>
-          <ThreadItem item={item} chains={chains} />
-        </div>
+        <ThreadItem key={`${item.kind}-${item.id}`} item={item} chains={chains} />
       ))}
     </div>
   );

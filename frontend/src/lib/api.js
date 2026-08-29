@@ -83,6 +83,7 @@ export const api = {
   parties: () => request("/api/parties"),
   ledger: (id) => request(`/api/parties/${id}/ledger`),
   inventory: () => request("/api/inventory"),
+  credit: () => request("/api/credit"),
   duplicates: () => request("/api/parties/duplicates"),
   dashboard: () => request("/api/dashboard"),
   gst: () => request("/api/gst"),
@@ -105,6 +106,18 @@ export const api = {
   demoSend: (key) => request(`/api/demo/send/${key}`, { method: "POST" }),
   demoReset: () => request("/api/demo/reset", { method: "POST" }),
 
+  scan: async (files, kind) => {
+    const form = new FormData();
+    [...files].forEach((f) => form.append("files", f));
+    form.append("kind", kind);
+    const token = session.get();
+    const response = await fetch(`${BASE}/api/scan`, {
+      method: "POST", body: form,
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!response.ok) throw new ApiError("upload failed", response.status);
+    return response.json();
+  },
   upload: async (file, kind) => {
     const form = new FormData();
     form.append("file", file);

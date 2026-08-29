@@ -49,9 +49,18 @@ class ShopSetup(BaseModel):
 
 @router.get("/setup/state")
 def setup_state():
-    """What the app asks before drawing anything: is there a shop here yet?"""
+    """What the app asks before drawing anything: is there a shop here yet?
+
+    Returns the shop's *name* even while locked — deliberately. The lock screen
+    should say "Murugan Hardware", not "Galla": it is his shop, and a person
+    should recognise their own counter before they are asked for a passcode.
+    Nothing else about the shop leaves until the passcode does.
+    """
+    shop = db().collection("shop").document(SHOP_ID).get().to_dict() or {}
     return {"configured": auth.is_configured(),
             "locked": auth.passcode_required(),
+            "shop_name": shop.get("name"),
+            "shop_name_ta": shop.get("name_ta"),
             "states": STATE_CODES}
 
 

@@ -346,20 +346,26 @@ class LocalClient:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, dict] = {}
+        self._stamps: dict[str, int] = {}
 
     # storage ------------------------------------------------------------
     def _file(self, collection: str) -> Path:
         return self.root / f"{collection}.json"
 
     def _load(self, collection: str) -> dict:
-        if collection in self._cache:
-            return self._cache[collection]
+        """Cached, but invalidated when the file changes underneath us.
+
+        A seeding script run while the dev server is up writes straight to the
+        JSON file; without the mtime check the server would keep serving what it
+        read at boot and the two would silently disagree.
+        """
         path = self._file(collection)
-        if path.exists():
-            raw = json.loads(path.read_text("utf-8"))
-        else:
-            raw = {}
+        stamp = path.stat().st_mtime_ns if path.exists() else 0
+        if collection in self._cache and self._stamps.get(collection) == stamp:
+            return self._cache[collection]
+        raw = json.loads(path.read_text("utf-8")) if path.exists() else {}
         self._cache[collection] = {k: _decode(v) for k, v in raw.items()}
+        self._stamps[collection] = stamp
         return self._cache[collection]
 
     def _flush(self, collection: str) -> None:
@@ -367,6 +373,7 @@ class LocalClient:
         tmp = self._file(collection).with_suffix(".json.tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
         tmp.replace(self._file(collection))
+        self._stamps[collection] = self._file(collection).stat().st_mtime_ns
 
     def _read(self, collection: str, doc_id: str) -> dict | None:
         with _LOCK:
@@ -427,5 +434,6 @@ class LocalClient:
     def reset(self) -> None:
         with _LOCK:
             self._cache.clear()
+            self._stamps.clear()
             for path in self.root.glob("*.json"):
                 path.unlink()

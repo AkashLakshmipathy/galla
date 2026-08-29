@@ -204,17 +204,16 @@ export function Onboarding({ states = {}, onDone }) {
   );
 }
 
-export function LockScreen({ shopName, onUnlocked }) {
+export function LockScreen({ shopName, shopNameTa, onUnlocked }) {
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = async (event) => {
-    event?.preventDefault();
+  const submit = async (code) => {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.signIn(passcode);
+      const result = await api.signIn(code);
       session.set(result.token);
       onUnlocked(result.shop);
     } catch (err) {
@@ -225,32 +224,55 @@ export function LockScreen({ shopName, onUnlocked }) {
     }
   };
 
+  const press = (key) => {
+    if (busy) return;
+    if (key === "⌫") return setPasscode((p) => p.slice(0, -1));
+    if (key === "→") return passcode.length >= 4 && submit(passcode);
+    setPasscode((p) => (p.length >= 12 ? p : p + key));
+  };
+
   return (
-    <form onSubmit={submit}
-          className="min-h-screen flex flex-col justify-center px-gutter pb-16">
-      <div className="text-center mb-8 animate-rise">
+    <div className="min-h-screen flex flex-col justify-between px-gutter pt-16 pb-8">
+      <div className="text-center animate-rise">
         <div className="w-[52px] h-[52px] rounded-full bg-ink mx-auto mb-4
                         flex items-center justify-center text-white text-[22px]">
           ₹
         </div>
+        {/* His shop's name, not the product's. He should recognise his own
+            counter before he is asked for anything. */}
         <div className="text-tile font-bold">{shopName || "Galla"}</div>
-        <p className="text-body text-text-2 mt-1">Enter your passcode</p>
+        {shopNameTa && shopNameTa !== shopName && (
+          <div className="text-body text-text-3 mt-0.5">{shopNameTa}</div>
+        )}
+
+        <div className="flex justify-center gap-3 mt-8 h-[16px]">
+          {Array.from({ length: Math.max(4, passcode.length) }).map((_, i) => (
+            <span key={i} className={`w-[14px] h-[14px] rounded-full transition-colors
+              ${i < passcode.length ? "bg-ink" : "bg-chevron"}`} />
+          ))}
+        </div>
+        <p className={`text-row mt-4 h-5 ${error ? "text-red font-semibold" : "text-text-2"}`}>
+          {error || "Enter your passcode"}
+        </p>
       </div>
-      <Card className="p-cardpad">
-        <input
-          className="w-full bg-transparent text-center text-verdict font-bold
-                     tracking-[0.3em] outline-none tnum"
-          value={passcode} type="password" inputMode="numeric" autoFocus
-          onChange={(e) => setPasscode(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
-          placeholder="••••"
-        />
-      </Card>
-      {error && <p className="text-row text-red text-center mt-3">{error}</p>}
-      <div className="mt-5">
-        <FatPill type="submit" disabled={passcode.length < 4 || busy}>
-          {busy ? "Checking…" : "Unlock"}
-        </FatPill>
+
+      {/* A keypad, not a text field. The owner is standing up, one-handed, in
+          bad light — 72px targets beat whatever keyboard the OS offers. */}
+      <div className="grid grid-cols-3 gap-2.5 mt-8">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "→"].map((key) => (
+          <button
+            key={key} type="button" onClick={() => press(key)}
+            disabled={busy || (key === "→" && passcode.length < 4)}
+            aria-label={key === "⌫" ? "Delete" : key === "→" ? "Unlock" : key}
+            className={`h-[72px] rounded-input text-[24px] font-semibold
+              active:opacity-70 disabled:opacity-30
+              ${key === "→" ? "bg-ink text-white"
+                : key === "⌫" ? "bg-fill-2 text-ink" : "bg-card text-ink"}`}
+          >
+            {busy && key === "→" ? "…" : key}
+          </button>
+        ))}
       </div>
-    </form>
+    </div>
   );
 }

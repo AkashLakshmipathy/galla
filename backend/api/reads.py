@@ -187,6 +187,89 @@ def duplicate_parties():
     return {"pairs": pairs, "count": len(pairs)}
 
 
+@router.get("/credit")
+def credit_book(months: int = 6):
+    """The khata, digitised: who owes what, and how the book has moved.
+
+    Everything here is derived from `ledger`, not from a maintained counter, so
+    the history and the balances cannot drift apart. `parties.credit.outstanding`
+    stays the fast path for a single verdict; this is the slow, honest read the
+    owner uses to understand his own book.
+    """
+    entries = _docs("ledger", "date", limit=5000)
+    parties = {s.id: (s.to_dict() or {}) for s in db().collection("parties").stream()}
+    live = {i: p for i, p in parties.items() if not p.get("merged_into")}
+
+    today = datetime.now(timezone.utc).date()
+    buckets = {"current": 0, "30": 0, "60": 0, "90+": 0}
+    by_month: dict[str, dict] = {}
+    per_party: dict[str, dict] = {}
+
+    for entry in entries:
+        party_id = merge.resolve(entry.get("party_id") or "")
+        if party_id not in live:
+            continue
+        amount = int(entry.get("amount") or 0)
+        given = entry.get("direction") == "debit"      # goods out on credit
+        month = str(entry.get("date") or "")[:7]
+        if month:
+            row = by_month.setdefault(month, {"period": month, "given": 0,
+                                              "received": 0, "entries": 0})
+            row["given" if given else "received"] += amount
+            row["entries"] += 1
+        stats = per_party.setdefault(party_id, {"given": 0, "received": 0,
+                                                "last_activity": None})
+        stats["given" if given else "received"] += amount
+        stats["last_activity"] = max(filter(None, [stats["last_activity"],
+                                                   entry.get("date")]), default=None)
+
+    rows = []
+    for party_id, party in live.items():
+        credit = party.get("credit") or {}
+        outstanding = int(credit.get("outstanding") or 0)
+        limit = int(credit.get("limit") or 0)
+        days = days_since(credit.get("last_payment_date"))
+        stats = per_party.get(party_id, {"given": 0, "received": 0,
+                                         "last_activity": None})
+        bucket = ("current" if days <= 30 else "30" if days <= 60
+                  else "60" if days <= 90 else "90+")
+        buckets[bucket] += outstanding
+        rows.append({
+            "party_id": party_id, "name": party.get("name"),
+            "name_ta": party.get("name_ta"), "phone": party.get("phone"),
+            "is_company": party.get("is_company", False),
+            "provisional": party.get("provisional", False),
+            "outstanding": outstanding, "limit": limit,
+            "exposure_pct": int(round(outstanding / limit * 100)) if limit else 0,
+            "days_since_payment": days, "bucket": bucket,
+            "given": stats["given"], "received": stats["received"],
+            "last_activity": stats["last_activity"],
+        })
+    rows.sort(key=lambda r: r["outstanding"], reverse=True)
+
+    months_list = sorted(by_month.values(), key=lambda m: m["period"],
+                         reverse=True)[:months]
+    for row in months_list:
+        row["net"] = row["given"] - row["received"]
+
+    total = sum(r["outstanding"] for r in rows)
+    return {
+        "parties": rows,
+        "totals": {
+            "outstanding": total,
+            "limit": sum(r["limit"] for r in rows),
+            "customers": len(rows),
+            "in_debt": sum(1 for r in rows if r["outstanding"] > 0),
+            "over_limit": sum(1 for r in rows
+                              if r["limit"] and r["outstanding"] > r["limit"]),
+            "given_all_time": sum(r["given"] for r in rows),
+            "received_all_time": sum(r["received"] for r in rows),
+        },
+        "ageing": buckets,
+        "months": list(reversed(months_list)),
+    }
+
+
 @router.get("/inventory")
 def inventory():
     from core import catalog

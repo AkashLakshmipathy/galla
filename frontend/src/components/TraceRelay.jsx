@@ -49,7 +49,12 @@ function statusLine(steps, status) {
     }[active.agent] ?? "Working…";
   }
   if (status === "failed") return "Something went wrong — nothing was saved.";
-  if (status === "awaiting_owner") return "Flagged — your decision is needed.";
+  const flagged = steps.some((s) => s.status === "flagged");
+  const parked = steps.some((s) => s.status === "waiting");
+  // Only claim a decision is needed when something was actually flagged. Saying
+  // it over two green ticks teaches the owner to ignore the line entirely.
+  if (flagged || parked) return "Flagged — your decision is needed.";
+  if (status === "awaiting_owner") return "Read and ready for you.";
   if (status === "complete") return "All agents finished.";
   return "Working…";
 }

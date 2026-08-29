@@ -64,9 +64,14 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 # last to demo day.
 GEMINI_MODEL_FAST = os.environ.get("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
 
-# A model call that hangs is worse than one that fails: the trace strip is on
-# camera. Past this, we stop waiting and use the deterministic fallback.
-LLM_TIMEOUT_SECONDS = float(os.environ.get("LLM_TIMEOUT_SECONDS", "20"))
+# A model call that hangs is worse than one that fails — the owner is standing at
+# the counter. Past this we stop waiting and use the deterministic fallback.
+# Reading a photograph is slower than reading text and the phone may be on a
+# patchy shop connection, so vision gets appreciably longer before we give up on
+# it: falling back on a bill the model could have read is the worse outcome.
+LLM_TIMEOUT_SECONDS = float(os.environ.get("LLM_TIMEOUT_SECONDS", "25"))
+LLM_VISION_TIMEOUT_SECONDS = float(
+    os.environ.get("LLM_VISION_TIMEOUT_SECONDS", "60"))
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "galla-media")
 PUBSUB_TOPIC = os.environ.get("PUBSUB_TOPIC", "shop-events")
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.85"))

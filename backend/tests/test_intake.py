@@ -73,3 +73,29 @@ def test_order_lines_carry_only_schema_fields(seeded):
     assert set(order["lines"][0]) == {
         "sku_id", "name_raw", "qty", "unit", "rate", "amount", "gst_rate",
         "confidence", "substitute_of", "in_stock"}
+
+
+def test_a_greeting_is_not_an_order_line(seeded):
+    """"அண்ணே" opens half the voice notes a shop receives. It is politeness,
+    not merchandise, and pricing it makes the whole draft look broken."""
+    from agents import intake_agent
+    trace = Trace("sale_order")
+    order = intake_agent.run(
+        {"party_id": "selvam", "source": "text",
+         "transcript": "அண்ணே, 20 மூட்டை ராம்கோ 53 அனுப்புங்க"}, trace)
+    assert len(order["lines"]) == 1
+    assert order["lines"][0]["sku_id"] == "cem-ramco-53"
+
+
+def test_an_unreadable_message_does_not_become_a_verdict(seeded):
+    """A zero-rupee order with a confident credit decision on it is the machine
+    claiming a judgement it has no basis for."""
+    from agents import router
+    from core.firestore_client import db
+    order = router.handle("sale_order", {"party_id": "selvam", "source": "text",
+                                         "transcript": "hello anna please"})
+    assert order["status"] == "unreadable"
+    assert order.get("credit_verdict") is None
+    trace = db().collection("agent_traces").document(order["trace_id"]).get().to_dict()
+    step = next(s for s in trace["steps"] if s["agent"] == "credit_guardian")
+    assert step["status"] == "waiting"

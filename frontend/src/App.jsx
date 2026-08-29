@@ -9,6 +9,7 @@ import { useOnline, usePolling, useToast } from "./lib/hooks.js";
 import { Approvals } from "./screens/Approvals.jsx";
 import { ConfirmQueue } from "./screens/ConfirmQueue.jsx";
 import { Counter } from "./screens/Counter.jsx";
+import { Credit, PartyLedger } from "./screens/Credit.jsx";
 import { LockScreen, Onboarding } from "./screens/Onboarding.jsx";
 import { GstDetail } from "./screens/GstDetail.jsx";
 import { InvoiceReview } from "./screens/InvoiceReview.jsx";
@@ -53,7 +54,7 @@ export default function App() {
   const { data: demo } = usePolling(api.demoScenarios,
     { interval: 0, active: unlocked, deps: [unlocked] });
   const demoMode = Boolean(demo?.demo_mode);
-  const isTab = ["/", "/approvals", "/shop"].includes(location.pathname);
+  const isTab = ["/", "/approvals", "/credit", "/shop"].includes(location.pathname);
 
   const onSent = (result, label) => {
     showToast(`${label} — the agents are on it`);
@@ -79,7 +80,7 @@ export default function App() {
   if (!unlocked) {
     return (
       <div className="min-h-full mx-auto max-w-[430px] bg-bg">
-        <LockScreen shopName={gate.shop_name}
+        <LockScreen shopName={gate.shop_name} shopNameTa={gate.shop_name_ta}
                     onUnlocked={() => setGate((g) => ({ ...g, signedIn: true }))} />
       </div>
     );
@@ -106,6 +107,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Counter onToast={showToast} />} />
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/credit" element={<Credit />} />
+          <Route path="/credit/:partyId" element={<PartyLedger />} />
           <Route path="/shop" element={<Shop onToast={showToast} />} />
           <Route path="/orders/:orderId" element={<OrderDetail onToast={showToast} />} />
           <Route path="/purchases/:purchaseId"
@@ -122,11 +125,11 @@ export default function App() {
         open={captureOpen}
         onClose={() => setCaptureOpen(false)}
         onError={showToast}
-        onStarted={(queued) => {
-          showToast("Photo saved — the agents are reading it");
-          setNudge((n) => n + 1);
-          if (queued.purchase_id) navigate(`/purchases/${queued.purchase_id}`);
-          else if (queued.import_id) navigate(`/khata/${queued.import_id}`);
+        onStarted={(result) => {
+          const n = result.count ?? 1;
+          showToast(`${n} sent for reading — keep going`);
+          setNudge((x) => x + 1);
+          if (location.pathname !== "/") navigate("/");
         }}
       />
       {demoMode && <DemoComposer

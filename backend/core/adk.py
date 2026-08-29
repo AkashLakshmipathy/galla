@@ -24,7 +24,8 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
 from core.config import (GEMINI_MODEL, LLM_AVAILABLE, LLM_TIMEOUT_SECONDS,
-                         PROJECT, USE_VERTEX, VERTEX_LOCATION)
+                         LLM_VISION_TIMEOUT_SECONDS, PROJECT, USE_VERTEX,
+                         VERTEX_LOCATION)
 
 _JSON_BLOCK = re.compile(r"\{.*\}|\[.*\]", re.DOTALL)
 
@@ -187,9 +188,10 @@ def ask(name: str, instruction: str, prompt: str, *,
         return LlmResult(fallback, ok=False, model=model,
                          note="no model credentials")
     try:
+        budget = timeout or (LLM_VISION_TIMEOUT_SECONDS if media
+                             else LLM_TIMEOUT_SECONDS)
         raw, tokens_in, tokens_out = _run_coro(
-            _invoke(name, instruction, prompt, media, model),
-            timeout=timeout or LLM_TIMEOUT_SECONDS)
+            _invoke(name, instruction, prompt, media, model), timeout=budget)
         return LlmResult(parse_json(raw), ok=True, model=model,
                          tokens_in=tokens_in, tokens_out=tokens_out, raw=raw)
     except Exception as exc:                              # noqa: BLE001
