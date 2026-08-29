@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timezone
 
 from core import confirm_queue, ids, parties, provisioning, storage
+from core.catalog import normalise as catalog_normalise
 from core.adk import Media, ask
 from core.config import CONFIDENCE_THRESHOLD, FIXTURES_DIR, GEMINI_MODEL_FAST
 from core.firestore_client import db
@@ -79,6 +80,10 @@ def _resolve_rows(raw_rows: list[dict]) -> list[dict]:
     shows, which is exactly what the Credit Guardian exists to catch.
     """
     index = parties.index()
+    # A khata page names the same person on several lines. Proposing a fresh
+    # account per row would open one debtor twice and split their balance across
+    # both, which is the very thing the merge feature exists to undo.
+    proposed_here: dict[str, dict] = {}
     rows: list[dict] = []
     for position, raw in enumerate(raw_rows, start=1):
         read = float(raw.get("confidence") or 0.9)
@@ -102,7 +107,8 @@ def _resolve_rows(raw_rows: list[dict]) -> list[dict]:
             # Nobody by this name is on file. Opening an account is the right
             # answer, so the row is only as uncertain as the handwriting was.
             row["confidence"] = round(read, 2)
-            row["new_party"] = resolution.proposed
+            key = catalog_normalise(name_raw)
+            row["new_party"] = proposed_here.setdefault(key, resolution.proposed)
         else:
             # Close to someone we know — the owner must say which.
             row["confidence"] = round(read * resolution.score, 2)

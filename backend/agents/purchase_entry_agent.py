@@ -181,10 +181,15 @@ def run(payload: dict, trace) -> dict:
         low = sum(1 for line in lines
                   if confirm_queue.is_uncertain(line["confidence"]))
 
+        supplier_name = extraction.get("supplier_name_raw", "")
+        supplier_gstin = extraction.get("supplier_gstin")
+        supplier_id = _match_supplier(supplier_name, supplier_gstin)
         purchase = {
             "purchase_id": purchase_id,
-            "supplier_id": _match_supplier(extraction.get("supplier_name_raw", ""),
-                                           extraction.get("supplier_gstin")),
+            "supplier_id": supplier_id,
+            "new_supplier": (None if supplier_id or not supplier_name
+                             else provisioning.propose_supplier(supplier_name,
+                                                                supplier_gstin)),
             "supplier_name_raw": extraction.get("supplier_name_raw"),
             "invoice_no": extraction.get("invoice_no"),
             "invoice_date": extraction.get("invoice_date"),

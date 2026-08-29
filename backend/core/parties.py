@@ -16,14 +16,50 @@ MIN_SCORE = 0.8
 
 
 def index() -> list[tuple[str, str]]:
-    """(party_id, normalised name) for every name a party goes by."""
+    """(party_id, normalised name) for every name a party goes by.
+
+    Includes learned aliases and the names of profiles merged into this one, so
+    twenty years of a khata spelling somebody four ways still lands on one
+    account.
+    """
     rows: list[tuple[str, str]] = []
     for snap in db().collection("parties").stream():
         party = snap.to_dict() or {}
-        for name in (party.get("name"), party.get("name_ta")):
+        if party.get("merged_into"):
+            continue
+        known = [party.get("name"), party.get("name_ta"),
+                 *(party.get("aliases") or []),
+                 *(party.get("aliases_merged") or [])]
+        for name in known:
             if name:
                 rows.append((snap.id, catalog.normalise(name)))
     return rows
+
+
+def learn_alias(party_id: str, name_raw: str) -> bool:
+    """Remember that this customer is also written *this* way.
+
+    A khata spells one man "Kumar Tiruppur", "Tiruppur Kumar" and "Kumar T"
+    across three pages. Resolving one and forgetting is how a single debtor ends
+    up as three accounts with a third of his debt each — which is exactly the
+    state the merge tool exists to clean up after.
+    """
+    normalised = catalog.normalise(name_raw)
+    if not party_id or not normalised:
+        return False
+    ref = db().collection("parties").document(party_id)
+    party = ref.get().to_dict()
+    if not party:
+        return False
+    known = {catalog.normalise(n) for n in
+             [party.get("name"), party.get("name_ta"), *(party.get("aliases") or [])]
+             if n}
+    if normalised in known:
+        return False
+    aliases = list(party.get("aliases") or [])
+    aliases.append(name_raw.strip())
+    ref.update({"aliases": aliases[-30:]})
+    return True
 
 
 def match(name_raw: str, rows: list[tuple[str, str]] | None = None

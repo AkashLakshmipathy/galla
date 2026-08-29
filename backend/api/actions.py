@@ -234,6 +234,9 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
             row[resolved[0]] = resolved[1]
             row["status"] = "confirmed"
             row["confidence"] = 1.0
+            # He just told us who this is. Remember the spelling.
+            if resolved[0] == "party_id" and resolved[1]:
+                parties.learn_alias(resolved[1], row.get("party_name_raw", ""))
         ref.update({"rows": rows,
                     "auto_accepted_count": sum(
                         1 for r in rows if r.get("status") == "auto_accepted"),
@@ -254,6 +257,11 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
         lines[index][resolved[0]] = resolved[1]
         lines[index]["confidence"] = 1.0
         lines[index]["matched"] = bool(lines[index].get("sku_id"))
+        # The owner just told us these are the same product. That is a better
+        # signal than any match score, so it goes into the catalogue's vocabulary
+        # and this supplier's wording is recognised outright next time.
+        if resolved[0] == "sku_id" and resolved[1]:
+            catalog.learn_alias(resolved[1], lines[index].get("description_raw", ""))
         lines[index]["amount"] = int(round(float(lines[index].get("qty") or 0)
                                            * float(lines[index].get("rate") or 0)))
         ref.update({"lines": lines, "totals": _purchase_totals(lines, record.get("totals")),

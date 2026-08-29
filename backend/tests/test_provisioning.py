@@ -210,3 +210,200 @@ def test_no_printed_total_falls_back_to_our_own_sum(seeded):
     t = _totals(lines, {"total": None})
     assert t["total"] == t["computed_total"] == 1180
     assert "rounding_difference" not in t
+
+
+def test_a_bill_from_an_unknown_supplier_opens_their_account(seeded):
+    """Otherwise the payable is recorded against nobody: the Purchases book
+    cannot find it and the shop is told it owes nothing while a real bill sits
+    on the counter."""
+    from agents import router
+    from api.reads import purchases_book
+    db().collection("parties").document("sbh_agencies").delete()
+    purchase = router.handle("purchase_inv", {})
+
+    result = confirm_purchase(purchase["purchase_id"])
+
+    assert result["created_supplier"], "a supplier account must be opened"
+    supplier = db().collection("parties").document(result["supplier_id"]) \
+        .get().to_dict()
+    assert supplier["type"] == "supplier"
+    assert supplier["credit"]["outstanding"] == result["amount"]
+    assert supplier["credit"]["limit"] == 0, "we owe them, not the reverse"
+    book = purchases_book()
+    assert book["totals"]["payable"] == result["amount"]
+
+
+def test_one_person_named_twice_on_a_page_gets_one_account(seeded):
+    """The khata names the same customer on several lines. Two accounts would
+    split their balance — the exact thing merge exists to undo."""
+    from agents import router
+    record = router.handle("khata_page", {})
+    result = commit_khata_import(record["import_id"])
+    assert len(result["created_parties"]) == len(set(result["created_parties"]))
+
+    rows = db().collection("khata_imports").document(record["import_id"]) \
+        .get().to_dict()["rows"]
+    by_name = {}
+    for row in rows:
+        if row.get("party_id"):
+            by_name.setdefault(row["party_name_raw"], set()).add(row["party_id"])
+    for name, ids in by_name.items():
+        assert len(ids) == 1, f"{name} was split across {ids}"
+
+
+def test_shouted_invoice_text_becomes_a_readable_name(seeded):
+    """str.title() turns G.I.PIPE into G.i.pipe and SDR11 into Sdr11. On a
+    hardware bill those are grades and sizes; changing their case changes what
+    they mean."""
+    from core.provisioning import _readable
+    assert _readable("ULTRATECH PPC CEMENT 50KG") == "Ultratech PPC Cement 50KG"
+    assert _readable('TATA G.I.PIPE 1" HVY CL-B 6MTR').startswith("Tata G.I.PIPE")
+    assert "Sdr11" not in _readable("ASTRAL CPVC PIPE 3/4 SDR11 3MTR")
+    assert _readable("Asian Paints Primer 1L") == "Asian Paints Primer 1L"
+
+
+def test_the_catalogue_learns_how_a_supplier_writes_a_name(seeded):
+    """Matching a shorthand once and forgetting is what turns one product into
+    four over a year of bills."""
+    wording = "TATA GI PIPE 3/4"                  # confident, but new wording
+    before = db().collection("catalog").document("plm-gi-075").get() \
+        .to_dict()["aliases"]
+
+    resolution = provisioning.resolve_sku({"description_raw": wording})
+
+    assert resolution.action == provisioning.USE
+    after = db().collection("catalog").document("plm-gi-075").get() \
+        .to_dict()["aliases"]
+    assert len(after) > len(before)
+    assert wording.lower() in after
+
+
+def test_the_wording_the_model_is_actually_needed_for(seeded):
+    """'GI PIPE 3/4 HEAVY' scores 0.70 against the catalogue — too low to trust
+    and too high to call new. String distance cannot tell that "HEAVY" is a
+    class and not a different product; that is what the model is asked."""
+    assert provisioning.AMBIGUOUS <= catalog.match("GI PIPE 3/4 HEAVY").confidence \
+        < provisioning.CERTAIN
+
+
+def test_confirming_a_line_teaches_the_catalogue(seeded):
+    """The owner saying "yes, that is the GI pipe" is a better signal than any
+    match score, so his wording is recognised outright next time."""
+    from agents import router
+    from api.actions import Resolution, resolve_queue_item
+    purchase = router.handle("purchase_inv", {})
+    item = next(s.to_dict() for s in db().collection("confirm_queue").stream()
+                if s.to_dict()["source_id"] == purchase["purchase_id"])
+
+    resolve_queue_item(item["item_id"], Resolution(accept_extracted=True))
+
+    aliases = db().collection("catalog").document("plm-gi-075").get() \
+        .to_dict()["aliases"]
+    assert item["extracted_value"].lower() in aliases
+    assert catalog.match(item["extracted_value"]).confidence >= provisioning.CERTAIN
+
+
+def test_a_learned_alias_makes_the_next_bill_match_outright(seeded):
+    wording = "G.I.PIPE 3/4 HVY CL-B TATA"
+    catalog.learn_alias("plm-gi-075", wording)
+    match = catalog.match(wording)
+    assert match.sku_id == "plm-gi-075"
+    assert match.confidence >= provisioning.CERTAIN
+
+
+def test_learning_the_same_wording_twice_does_not_grow_the_list(seeded):
+    catalog.learn_alias("plm-gi-075", "GI PIPE HEAVY")
+    first = db().collection("catalog").document("plm-gi-075").get().to_dict()["aliases"]
+    catalog.learn_alias("plm-gi-075", "gi pipe heavy")
+    second = db().collection("catalog").document("plm-gi-075").get().to_dict()["aliases"]
+    assert first == second
+
+
+def test_the_alias_list_stays_bounded(seeded):
+    """A catalogue row is read on every line of every bill."""
+    for i in range(60):
+        catalog.learn_alias("plm-gi-075", f"GI PIPE VARIANT {i} XY")
+    assert len(db().collection("catalog").document("plm-gi-075").get()
+               .to_dict()["aliases"]) <= 40
+
+
+def test_the_model_is_only_consulted_in_the_ambiguous_band(seeded, monkeypatch):
+    """A certain match does not need it and an obviously new product does not
+    either — asking anyway would spend money and time on every line."""
+    calls = []
+    monkeypatch.setattr(provisioning, "_model_decides",
+                        lambda d, c: calls.append(d) or (None, 0.0))
+
+    provisioning.resolve_sku({"description_raw": "RAMCO SUPERGRADE OPC 53 50KG"})
+    assert calls == [], "a confident match must not call the model"
+
+    provisioning.resolve_sku({"description_raw": "ZZZ UNKNOWN WIDGET QQQ"})
+    assert calls == [], "an obviously new product must not call the model"
+
+
+def test_the_model_can_settle_an_ambiguous_line(seeded, monkeypatch):
+    monkeypatch.setattr(provisioning, "_model_decides",
+                        lambda d, c: ("plm-gi-075", 0.95))
+    r = provisioning.resolve_sku({"description_raw": 'G.I.PIPE 3/4" HVY 6MTR TATA'})
+    assert r.action == provisioning.USE and r.existing_id == "plm-gi-075"
+
+
+def test_an_unsure_model_leaves_the_decision_to_the_owner(seeded, monkeypatch):
+    monkeypatch.setattr(provisioning, "_model_decides", lambda d, c: (None, 0.0))
+    r = provisioning.resolve_sku({"description_raw": 'G.I.PIPE 3/4" HVY 6MTR TATA'})
+    assert r.action == provisioning.ASK
+    assert not r.creates
+
+
+# ------------------------------------------------- names written many ways
+def test_word_order_in_a_name_does_not_matter(seeded):
+    from core import parties
+    db().collection("parties").document("kumar").update({"name": "Kumar Tiruppur"})
+    for spelling in ("Tiruppur Kumar", "KUMAR TIRUPPUR", "Kumar, Tiruppur"):
+        assert provisioning.resolve_party(spelling).existing_id == "kumar", spelling
+
+
+def test_a_confirmed_spelling_is_remembered(seeded):
+    from core import parties
+    db().collection("parties").document("kumar").update({"name": "Kumar Tiruppur"})
+    provisioning.resolve_party("Tiruppur Kumar")
+    aliases = db().collection("parties").document("kumar").get().to_dict()["aliases"]
+    assert "Tiruppur Kumar" in aliases
+    # ...and it is part of the index from then on
+    assert any(a == "tiruppur kumar" for _, a in parties.index())
+
+
+def test_the_model_settles_a_shortened_name(seeded, monkeypatch):
+    """"Kumar T" scores 0.83 — below certainty, above nothing. Word order is
+    already handled; what the model adds is knowing an initial is the same man."""
+    db().collection("parties").document("kumar").update({"name": "Kumar Tiruppur"})
+    monkeypatch.setattr(provisioning, "_model_decides_party",
+                        lambda n, c: ("kumar", 0.93))
+    r = provisioning.resolve_party("Kumar T")
+    assert r.action == provisioning.USE and r.existing_id == "kumar"
+
+
+def test_an_unsure_model_still_asks_the_owner(seeded, monkeypatch):
+    """The ask band stays. Merging two traders puts one man's debt on another's
+    account, so an uncertain answer is never allowed to act."""
+    db().collection("parties").document("kumar").update({"name": "Kumar Tiruppur"})
+    monkeypatch.setattr(provisioning, "_model_decides_party", lambda n, c: (None, 0.4))
+    r = provisioning.resolve_party("Kumar T")
+    assert r.action == provisioning.ASK and not r.creates
+    assert r.near_miss["party_id"] == "kumar"
+
+
+def test_merging_teaches_the_survivor_the_old_spellings(seeded):
+    from core import merge, parties
+    db().collection("parties").document("selvan").set({
+        "party_id": "selvan", "name": "Selvan", "type": "customer",
+        "aliases": ["Selvan Thudiyalur"],
+        "credit": {"limit": 50000, "outstanding": 1000}})
+
+    merge.merge_parties("selvan", "selvam")
+
+    survivor = db().collection("parties").document("selvam").get().to_dict()
+    assert "Selvan" in survivor["aliases_merged"]
+    assert "Selvan Thudiyalur" in survivor["aliases_merged"]
+    # the old spelling now resolves to the surviving account
+    assert provisioning.resolve_party("Selvan Thudiyalur").existing_id == "selvam"

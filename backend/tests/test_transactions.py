@@ -191,3 +191,92 @@ def test_the_same_sku_twice_on_one_invoice_adds_both_quantities(seeded):
     gi_deltas = [d for d in result["stock_delta"] if d["sku_id"] == "plm-gi-075"]
     assert len(gi_deltas) == 1, "the delta shown to the owner is per SKU, not per line"
     assert gi_deltas[0] == {"sku_id": "plm-gi-075", "before": before, "after": after}
+
+
+def test_selling_reduces_stock(seeded):
+    """Buying added and selling never subtracted, so the count drifted upward
+    forever and every low-stock warning was fiction."""
+    from agents import router
+    before = seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"]
+    order = router.handle("sale_order", {"party_id": "kumar", "source": "text",
+                                         "transcript": "10 bags dalmia 53"})
+
+    result = approve_order(order["order_id"])
+
+    after = seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"]
+    assert after == before - 10
+    assert result["stock_delta"] == [
+        {"sku_id": "cem-dalmia-53", "before": before, "after": after}]
+
+
+def test_approving_twice_does_not_deduct_stock_twice(seeded):
+    from agents import router
+    order = router.handle("sale_order", {"party_id": "kumar", "source": "text",
+                                         "transcript": "10 bags dalmia 53"})
+    approve_order(order["order_id"])
+    once = seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"]
+
+    approve_order(order["order_id"])
+
+    assert seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"] == once
+
+
+def test_the_same_sku_on_two_lines_deducts_both(seeded):
+    from agents import router
+    order = router.handle("sale_order", {"party_id": "kumar", "source": "text",
+                                         "transcript": "6 bags dalmia 53"})
+    ref = db().collection("orders").document(order["order_id"])
+    lines = ref.get().to_dict()["lines"]
+    ref.update({"lines": lines + [dict(lines[0])]})       # same SKU again
+    before = seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"]
+
+    approve_order(order["order_id"])
+
+    assert seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"] == before - 12
+
+
+def test_stock_may_go_negative_rather_than_block_a_sale(seeded):
+    """A shop routinely promises goods it has not received. Refusing would be
+    wrong; hiding the shortfall would be worse."""
+    from agents import router
+    order = router.handle("sale_order", {"party_id": "kumar", "source": "text",
+                                         "transcript": "20 bags ramco 53"})
+    approve_order(order["order_id"])
+    assert seeded.collection("inventory").document("cem-ramco-53").get() \
+        .to_dict()["qty_on_hand"] == 6 - 20
+
+
+def test_declining_an_order_leaves_stock_alone(seeded):
+    from agents import router
+    order = router.handle("sale_order", {"party_id": "kumar", "source": "text",
+                                         "transcript": "10 bags dalmia 53"})
+    before = seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"]
+
+    record_owner_action(order["order_id"], "reject")
+
+    assert seeded.collection("inventory").document("cem-dalmia-53").get() \
+        .to_dict()["qty_on_hand"] == before
+
+
+def test_buy_then_sell_lands_on_the_right_number(seeded):
+    """The whole round trip: photograph a bill, save it to stock, sell some."""
+    from agents import router
+    purchase = router.handle("purchase_inv", {})
+    _accept_pending_lines(purchase["purchase_id"])
+    confirm_purchase(purchase["purchase_id"])
+    after_buying = seeded.collection("inventory").document("plm-cpvc-075").get() \
+        .to_dict()["qty_on_hand"]
+
+    order = router.handle("sale_order", {"party_id": "kumar", "source": "text",
+                                         "transcript": "5 lengths 3/4 pipe"})
+    approve_order(order["order_id"])
+
+    assert seeded.collection("inventory").document("plm-cpvc-075").get() \
+        .to_dict()["qty_on_hand"] == after_buying - 5

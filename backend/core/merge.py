@@ -155,10 +155,14 @@ def merge_parties(source_id: str, target_id: str, by: str = "owner") -> dict:
         combined = _merge_credit(target, source)
         now = datetime.now(timezone.utc)
 
+        # Every name the absorbed profile went by becomes a name the survivor
+        # answers to, so the next khata page spelling it the old way lands on the
+        # right account instead of opening the duplicate all over again.
         txn.update(target_ref, {
             "credit": combined,
             "aliases_merged": sorted(set(target.get("aliases_merged") or [])
-                                     | set(_names(source))),
+                                     | set(_names(source))
+                                     | set(source.get("aliases") or [])),
             "updated_at": now,
         })
         # The source keeps its history and its name; it simply stops being a

@@ -218,6 +218,35 @@ def rate_for(sku: dict, tier: str) -> int:
     return int(tiers.get(tier) or tiers.get("retail") or 0)
 
 
+def learn_alias(sku_id: str, description: str) -> bool:
+    """Remember that this shop's suppliers write the product *this* way too.
+
+    The same item arrives spelled differently on every bill — "GI PIPE",
+    "G.I.PIPE 1 HVY", "Tata GI 1 inch". Matching one of them and then forgetting
+    is what turns one product into four in the catalogue over a year. Every
+    resolved description is written back as an alias, so the shop's vocabulary
+    grows into its own suppliers' handwriting and the next bill matches outright.
+    """
+    normalised = normalise(description)
+    if not sku_id or not normalised:
+        return False
+    ref = db().collection("catalog").document(sku_id)
+    row = ref.get().to_dict()
+    if not row:
+        return False
+    known = {normalise(a) for a in (row.get("aliases") or [])}
+    known.add(normalise(row.get("name", "")))
+    if normalised in known:
+        return False
+    aliases = list(row.get("aliases") or [])
+    aliases.append(description.strip().lower())
+    # Bounded: a catalogue row is read on every line of every bill, and an
+    # unbounded alias list would quietly make matching slower for ever.
+    ref.update({"aliases": aliases[-40:]})
+    invalidate()
+    return True
+
+
 def by_id(sku_id: str, catalog: list[dict] | None = None) -> dict | None:
     for row in (catalog if catalog is not None else load()):
         if row.get("sku_id") == sku_id:

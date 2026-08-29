@@ -40,8 +40,11 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
         if not order:
             raise LookupError(f"order {order_id} not found")
         if order.get("status") == "approved":
+            # Already sold. Returning early is what keeps a redelivered message
+            # or a double-tap from deducting the stock twice.
             return {"order_id": order_id, "already": True,
-                    "entry_id": (order.get("owner_action") or {}).get("entry_id")}
+                    "entry_id": (order.get("owner_action") or {}).get("entry_id"),
+                    "stock_delta": order.get("stock_delta") or []}
 
         # A SKU created from a supplier bill is received into stock but has no
         # selling price until a human sets one. Approving an order containing it
@@ -60,6 +63,38 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
         total = int(order.get("total") or 0)
         balance_after = int(credit.get("outstanding") or 0) + total
 
+        # Goods leaving the shop have to leave the stock count in the same
+        # breath as the money entering the ledger. Without this, buying adds and
+        # selling never subtracts: the count drifts upward forever, the low-stock
+        # warnings become fiction, and the substitute suggestion stops firing on
+        # the very line it exists for.
+        #
+        # Totalled per SKU first, for the same reason the purchase side is: a
+        # transaction cannot see its own writes, so one read-modify-write per
+        # line would keep only the last.
+        sold: dict[str, float] = {}
+        for line in order.get("lines") or []:
+            sku_id = line.get("sku_id")
+            if sku_id:
+                sold[sku_id] = sold.get(sku_id, 0) + float(line.get("qty") or 0)
+
+        stock_delta = []
+        for sku_id, qty in sold.items():
+            inventory_ref = db().collection("inventory").document(sku_id)
+            current = inventory_ref.get(transaction=txn).to_dict() or {}
+            before = int(current.get("qty_on_hand") or 0)
+            after = int(before - qty)
+            # A shop routinely promises goods it has not received yet. Refusing
+            # the sale would be wrong; hiding the shortfall would be worse, so
+            # the count is allowed to go negative and says so on screen.
+            txn.set(inventory_ref, {
+                "sku_id": sku_id, "qty_on_hand": after,
+                "reorder_level": current.get("reorder_level", 15),
+                "last_updated": datetime.now(timezone.utc),
+                "last_order_id": order_id,
+            })
+            stock_delta.append({"sku_id": sku_id, "before": before, "after": after})
+
         entry_id = ids.entry_id()
         txn.set(_ledger_ref(entry_id), {
             "entry_id": entry_id, "party_id": order["party_id"], "date": _today(),
@@ -73,11 +108,13 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
                                "updated_at": datetime.now(timezone.utc)})
         txn.update(order_ref, {
             "status": "approved",
+            "stock_delta": stock_delta,
             "owner_action": {"action": "approve", "at": datetime.now(timezone.utc),
                              "note": note, "by": by, "entry_id": entry_id},
         })
         return {"order_id": order_id, "entry_id": entry_id,
-                "balance_after": balance_after, "amount": total}
+                "balance_after": balance_after, "amount": total,
+                "stock_delta": stock_delta}
 
     return run_transaction(txn_body)
 
@@ -156,15 +193,26 @@ def confirm_purchase(purchase_id: str) -> dict:
             })
             delta.append({"sku_id": sku_id, "before": before, "after": after})
 
+        # A bill from a supplier the shop has never dealt with opens their
+        # account here, in the same transaction as the payable it explains.
         supplier_id = purchase.get("supplier_id")
+        created_supplier = None
+        if not supplier_id and purchase.get("new_supplier"):
+            supplier_id = provisioning.create_party(
+                txn, purchase["new_supplier"], purchase_id)
+            created_supplier = supplier_id
+
         total = int((purchase.get("totals") or {}).get("total") or 0)
         entry_id = ids.entry_id()
         balance_after = total
         if supplier_id:
             supplier_ref = db().collection("parties").document(supplier_id)
-            supplier = supplier_ref.get(transaction=txn).to_dict() or {}
-            credit = dict(supplier.get("credit") or {})
-            balance_after = int(credit.get("outstanding") or 0) + total
+            # A supplier created a moment ago cannot be read back — a Firestore
+            # transaction never sees its own writes — so it starts at zero.
+            previous = 0 if created_supplier else int(
+                ((supplier_ref.get(transaction=txn).to_dict() or {})
+                 .get("credit") or {}).get("outstanding") or 0)
+            balance_after = previous + total
             txn.update(supplier_ref, {"credit.outstanding": balance_after,
                                       "updated_at": datetime.now(timezone.utc)})
         txn.set(_ledger_ref(entry_id), {
@@ -179,11 +227,13 @@ def confirm_purchase(purchase_id: str) -> dict:
         txn.update(purchase_ref, {
             "status": "confirmed", "stock_applied": True, "stock_delta": delta,
             "lines": lines, "created_skus": created_skus,
+            "supplier_id": supplier_id, "created_supplier": created_supplier,
             "payable_ledger_id": entry_id,
             "confirmed_at": datetime.now(timezone.utc),
         })
         return {"purchase_id": purchase_id, "stock_delta": delta,
-                "created_skus": created_skus,
+                "created_skus": created_skus, "supplier_id": supplier_id,
+                "created_supplier": created_supplier,
                 "payable_ledger_id": entry_id, "amount": total}
 
     result = run_transaction(txn_body)
@@ -214,7 +264,7 @@ def commit_khata_import(import_id: str) -> dict:
         # Open an account for any confirmed row naming somebody we have never
         # traded with. Same transaction as the ledger entries, so a discarded
         # import never leaves an empty profile behind.
-        created_parties = []
+        created_parties: list[str] = []
         for row in rows:
             if row.get("status") not in {"auto_accepted", "confirmed"}:
                 continue
@@ -222,9 +272,13 @@ def commit_khata_import(import_id: str) -> dict:
                 continue
             if row.get("near_miss"):
                 continue      # might be an existing contractor; the owner decides
-            party_id = provisioning.create_party(txn, row["new_party"], import_id)
+            party_id = row["new_party"]["party_id"]
+            # A page names the same person on several lines. They share one
+            # proposal, so create the account once and point the rest at it.
+            if party_id not in created_parties:
+                party_id = provisioning.create_party(txn, row["new_party"], import_id)
+                created_parties.append(party_id)
             row["party_id"] = party_id
-            created_parties.append(party_id)
 
         postable = [r for r in rows
                     if r.get("status") in {"auto_accepted", "confirmed"}
