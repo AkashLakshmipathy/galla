@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BookChart, PeriodTabs, TotalsRow } from "../components/BookChart.jsx";
-import { Card, Chevron, EmptyState, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
+import { Card, EmptyState, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { ddmmyyyy, inr } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";

@@ -13,7 +13,7 @@ Invariants held here, not by callers:
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from core import ids, provisioning
 from core.firestore_client import db, run_transaction

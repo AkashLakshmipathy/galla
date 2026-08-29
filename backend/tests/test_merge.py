@@ -9,7 +9,6 @@ import pytest
 
 from core import merge
 from core.firestore_client import db
-from core.transactions import commit_khata_import
 
 
 def _make_duplicate(seeded, party_id="selvan", name="Selvan", outstanding=12000):

@@ -125,3 +125,25 @@ def test_erasing_needs_both_the_passcode_and_a_typed_confirmation(app):
     assert ok.status_code == 200
     assert app.get("/api/setup/state").json()["configured"] is False
     assert len(list(db().collection("parties").stream())) == 0
+
+
+def test_ingest_is_guarded_even_though_it_is_not_under_api(app):
+    """/ingest writes into the books. Living outside /api/ is a URL detail, not
+    a reason to let a stranger post orders into a locked shop."""
+    app.post("/api/setup", json=SETUP)
+    assert app.post("/ingest", json={"type": "sale_order", "party_id": "x",
+                                     "transcript": "20 bags"}).status_code == 401
+
+    token = app.post("/api/session", json={"passcode": "4271"}).json()["token"]
+    assert app.post("/ingest", headers={"Authorization": f"Bearer {token}"},
+                    json={"type": "sale_order", "party_id": "selvam",
+                          "transcript": "20 bags ramco 53"}).status_code == 200
+
+
+def test_the_api_docs_are_not_published_for_a_real_shop(app, monkeypatch):
+    """The schema is free reconnaissance for anyone who finds the URL."""
+    import main as main_module
+    assert main_module.DEMO_MODE is False or main_module.app.docs_url == "/docs"
+    if not main_module.DEMO_MODE:
+        assert app.get("/docs").status_code == 404
+        assert app.get("/openapi.json").status_code == 404

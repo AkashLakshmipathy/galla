@@ -1,7 +1,7 @@
 """Read endpoints for the PWA. No writes here, ever."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Response
 from google.cloud.firestore_v1.base_query import FieldFilter

@@ -30,12 +30,18 @@ from fastapi.staticfiles import StaticFiles
 from agents import router as agent_router
 from api import actions, demo, reads, setup
 from core import auth, authz, ids
-from core.config import LOCAL_STORE, PROJECT, PUBSUB_TOPIC, STORE
+from core.config import DEMO_MODE, LOCAL_STORE, PROJECT, PUBSUB_TOPIC, STORE
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("galla")
 
-app = FastAPI(title="Galla", version="1.0")
+# The interactive docs enumerate every endpoint and its schema. That is useful
+# while building and it is free reconnaissance for anyone who finds a real shop's
+# URL, so they exist only where DEMO_MODE is on.
+app = FastAPI(title="Galla", version="1.0",
+              docs_url="/docs" if DEMO_MODE else None,
+              redoc_url="/redoc" if DEMO_MODE else None,
+              openapi_url="/openapi.json" if DEMO_MODE else None)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=json.loads(os.environ.get("CORS_ORIGINS", '["*"]')),
@@ -49,8 +55,16 @@ app.include_router(demo.router)
 # The only paths that work before you are signed in. `/api/setup` closes behind
 # itself once a shop exists, and `/api/media` is left open because the PWA loads
 # photos and PDFs into <img> and <a> tags that cannot carry a header.
+# Everything the owner has to reach before signing in, plus the two paths Google
+# authenticates for itself with OIDC. Media is open because the PWA loads photos
+# and PDFs into <img> and <a> tags that cannot carry an Authorization header.
 OPEN_PATHS = ("/api/setup/state", "/api/setup", "/api/session", "/api/healthz",
               "/healthz", "/api/media/", "/pubsub/push", "/jobs/")
+
+# Guarded like an API route even though it does not live under /api. `/ingest`
+# writes into the shop's books, so leaving it outside the gate meant a stranger
+# with the URL could post orders into a locked shop.
+GUARDED_PATHS = ("/ingest",)
 
 EVENT_TYPES = {"sale_order", "purchase_inv", "khata_page"}
 _ID_FOR = {"sale_order": ("order_id", ids.order_id),
@@ -73,7 +87,8 @@ async def require_owner(request: Request, call_next):
     the PWA shell itself always loads — the app then shows its own lock screen.
     """
     path = request.url.path
-    if not path.startswith("/api/") or path.startswith(OPEN_PATHS):
+    protected = path.startswith("/api/") or path.startswith(GUARDED_PATHS)
+    if not protected or path.startswith(OPEN_PATHS):
         return await call_next(request)
     if not auth.passcode_required():
         return await call_next(request)      # not set up yet; nothing to protect

@@ -8,7 +8,7 @@ from datetime import date
 
 import pytest
 
-from agents.credit_guardian_agent import Verdict, days_since, decide
+from agents.credit_guardian_agent import days_since, decide
 
 TODAY = date(2026, 8, 28)
 

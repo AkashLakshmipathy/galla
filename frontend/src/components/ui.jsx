@@ -37,8 +37,8 @@ export function Row({ onClick, chevron = false, className = "", children }) {
 export function Chevron() {
   return (
     <svg width="8" height="13" viewBox="0 0 8 13" fill="none" className="shrink-0">
-      <path d="M1.5 1.5 6.5 6.5 1.5 11.5" stroke="#C7C7CC" strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1.5 1.5 6.5 6.5 1.5 11.5" strokeWidth="2" strokeLinecap="round"
+            strokeLinejoin="round" className="stroke-chevron" />
     </svg>
   );
 }

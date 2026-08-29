@@ -11,8 +11,6 @@ of an entry, which reads differently depending on whose book you are in.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
-
 from core import merge
 from core.firestore_client import db
 

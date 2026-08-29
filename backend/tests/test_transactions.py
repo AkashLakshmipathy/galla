@@ -5,7 +5,6 @@ delivers at least once, and a redelivered message must not double a balance or
 double stock. Each of these would be a silent money bug in production.
 """
 from core.firestore_client import db
-from core.trace import Trace
 from core.transactions import (approve_order, commit_khata_import,
                                confirm_purchase, record_owner_action)
 

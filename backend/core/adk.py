@@ -20,7 +20,7 @@ import concurrent.futures
 import json
 import re
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
 from core.config import (GEMINI_MODEL, LLM_AVAILABLE, LLM_TIMEOUT_SECONDS,

@@ -25,7 +25,6 @@ from core.money import gst_split, inr
 def previous_period(today: date | None = None) -> str:
     today = today or datetime.now(timezone.utc).date()
     first = today.replace(day=1)
-    last_month = first.replace(day=1) if first.month != 1 else first
     year, month = (first.year, first.month - 1) if first.month > 1 else (first.year - 1, 12)
     return f"{year:04d}-{month:02d}"
 
