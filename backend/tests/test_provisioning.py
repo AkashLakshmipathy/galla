@@ -596,3 +596,58 @@ def test_a_bill_whose_total_disagrees_still_asks(seeded):
     totals = pe._totals(lines, {"total": 9999})
     assert totals["rounding_difference"] != 0
     assert pe._queue_uncertain("pur_y", lines, None, totals) == 1
+
+
+# --------------------------------------------- correcting what was read
+def test_the_owner_can_pick_the_exact_account_rather_than_type_a_name(seeded):
+    """Parsing a typed name back into a record can land on the wrong one. He
+    already told us which he meant."""
+    from agents import router
+    from api.actions import Resolution, resolve_queue_item
+    record = router.handle("khata_page", {})
+    item = next((s.to_dict() for s in db().collection("confirm_queue").stream()
+                 if s.to_dict()["source_id"] == record["import_id"]
+                 and s.to_dict()["field"] == "party_id"), None)
+    if item is None:
+        return                                   # this fixture flagged no names
+
+    resolve_queue_item(item["item_id"], Resolution(party_id="kumar"))
+
+    rows = db().collection("khata_imports").document(record["import_id"]) \
+        .get().to_dict()["rows"]
+    edited = next(r for r in rows if r["row_id"] == item["row_id"])
+    assert edited["party_id"] == "kumar"
+
+
+def test_an_amount_can_simply_be_typed_in(seeded):
+    from agents import router
+    from api.actions import Resolution, resolve_queue_item
+    record = router.handle("khata_page", {})
+    item = next(s.to_dict() for s in db().collection("confirm_queue").stream()
+                if s.to_dict()["source_id"] == record["import_id"]
+                and s.to_dict()["field"] == "amount")
+
+    resolve_queue_item(item["item_id"], Resolution(value="1575"))
+
+    rows = db().collection("khata_imports").document(record["import_id"]) \
+        .get().to_dict()["rows"]
+    edited = next(r for r in rows if r["row_id"] == item["row_id"])
+    assert edited["amount"] == 1575
+
+
+def test_a_purchase_read_as_a_payment_can_be_turned_round(seeded):
+    """The difference between adding to a man's debt and clearing it."""
+    from agents import router
+    from api.actions import KhataRow, edit_khata_rows
+    record = router.handle("khata_page", {})
+    row = record["rows"][0]
+
+    edit_khata_rows(record["import_id"], [KhataRow(
+        row_id=row["row_id"], entry_type="payment_received", amount=250)])
+
+    rows = db().collection("khata_imports").document(record["import_id"]) \
+        .get().to_dict()["rows"]
+    edited = next(r for r in rows if r["row_id"] == row["row_id"])
+    assert edited["entry_type"] == "payment_received"
+    assert edited["amount"] == 250
+    assert edited["status"] == "confirmed"

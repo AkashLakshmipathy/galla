@@ -161,6 +161,10 @@ def apply_substitute(order_id: str, body: Substitution):
 class Resolution(BaseModel):
     value: str | float | int | None = None
     accept_extracted: bool = False
+    # An explicit choice from a list beats trying to parse a typed name back
+    # into the right record — the owner already told us which one he meant.
+    party_id: str | None = None
+    sku_id: str | None = None
 
 
 @router.post("/confirm-queue/{item_id}/resolve")
@@ -175,18 +179,21 @@ def resolve_queue_item(item_id: str, body: Resolution):
     if item.get("status") != "pending":
         return serialize.jsonable(item)
 
-    value = item.get("extracted_value") if body.accept_extracted else body.value
+    chosen = body.party_id or body.sku_id
+    value = item.get("extracted_value") if body.accept_extracted else (
+        chosen or body.value)
     ref.update({
         "status": "confirmed" if body.accept_extracted else "corrected",
         "resolved_value": value, "resolved_by": "owner",
         "resolved_at": datetime.now(timezone.utc),
     })
-    _write_back(item, value, body.accept_extracted)
+    _write_back(item, value, body.accept_extracted, chosen=chosen)
     return serialize.jsonable(ref.get().to_dict())
 
 
 def _resolved_field(item: dict, value, accept_extracted: bool,
-                    current: dict) -> tuple[str, object] | None:
+                    current: dict, chosen: str | None = None
+                    ) -> tuple[str, object] | None:
     """Turn what the owner tapped into (field, storable value).
 
     The queue shows *display* text — a formatted amount, a product name, a party
@@ -197,6 +204,9 @@ def _resolved_field(item: dict, value, accept_extracted: bool,
     on the record, not the label shown beside it.
     """
     field = item.get("field") or "amount"
+    # The owner picked a record off a list; no guessing required.
+    if chosen and field in {"sku_id", "party_id"}:
+        return (field, chosen)
     if field == "sku_id":
         if accept_extracted:
             # "The agent was right." That is either the id it already attached,
@@ -217,7 +227,8 @@ def _resolved_field(item: dict, value, accept_extracted: bool,
     return (field, value)
 
 
-def _write_back(item: dict, value, accept_extracted: bool) -> None:
+def _write_back(item: dict, value, accept_extracted: bool,
+                chosen: str | None = None) -> None:
     """Push the owner's answer into the record the queue card came from."""
     source, source_id, row_id = (item.get("source_type"), item.get("source_id"),
                                  item.get("row_id"))
@@ -228,7 +239,7 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
         for row in rows:
             if str(row.get("row_id")) != str(row_id):
                 continue
-            resolved = _resolved_field(item, value, accept_extracted, row)
+            resolved = _resolved_field(item, value, accept_extracted, row, chosen)
             if resolved is None:
                 raise HTTPException(400, "could not resolve that value")
             row[resolved[0]] = resolved[1]
@@ -255,7 +266,8 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
         index = int(row_id or 0)
         if not 0 <= index < len(lines):
             raise HTTPException(400, "no such line")
-        resolved = _resolved_field(item, value, accept_extracted, lines[index])
+        resolved = _resolved_field(item, value, accept_extracted, lines[index],
+                                   chosen)
         if resolved is None:
             raise HTTPException(400, "could not resolve that value")
         lines[index][resolved[0]] = resolved[1]
@@ -281,7 +293,8 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
         index = int(row_id or 0)
         if not 0 <= index < len(lines):
             raise HTTPException(400, "no such line")
-        resolved = _resolved_field(item, value, accept_extracted, lines[index])
+        resolved = _resolved_field(item, value, accept_extracted, lines[index],
+                                   chosen)
         if resolved is None:
             raise HTTPException(400, "could not resolve that value")
         lines[index][resolved[0]] = resolved[1]
@@ -407,6 +420,7 @@ class KhataRow(BaseModel):
     amount: float | None = None
     party_id: str | None = None
     date: str | None = None
+    entry_type: str | None = None
     confirm: bool = True
 
 
@@ -430,6 +444,11 @@ def edit_khata_rows(import_id: str, rows_in: list[KhataRow]):
             row["party_id"] = edit.party_id
         if edit.date is not None:
             row["date"] = edit.date
+        if edit.entry_type in {"sale_credit", "payment_received"}:
+            # Goods taken or money paid — the difference between adding to a
+            # man's debt and clearing it, and the model gets it wrong when the
+            # page does not say which.
+            row["entry_type"] = edit.entry_type
         if edit.confirm:
             row["status"] = "confirmed"
             row["confidence"] = 1.0

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackBar } from "../components/BackBar.jsx";
+import { CorrectSheet } from "../components/CorrectSheet.jsx";
 import { Card, FatPill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { usePolling } from "../lib/hooks.js";
@@ -49,6 +50,7 @@ export function ConfirmQueue({ onToast }) {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const [startCount, setStartCount] = useState(null);
   const { data, refresh } = usePolling(api.confirmQueue, { interval: 4000 });
 
@@ -150,8 +152,14 @@ export function ConfirmQueue({ onToast }) {
             )}
 
             <div className="space-y-1.5 pt-1">
-              <FatPill disabled={busy} onClick={() => resolve(null, true)}>
-                {busy ? "Saving…" : "Confirm as read"}
+              {/* The agent flagged this because it was unsure. Correcting it has
+                  to be the easy path, not a dead end with two bad choices. */}
+              <FatPill disabled={busy} onClick={() => setCorrecting(true)}>
+                That is not right — let me fix it
+              </FatPill>
+              <FatPill variant="secondary" disabled={busy}
+                       onClick={() => resolve(null, true)}>
+                {busy ? "Saving…" : "The agent was right"}
               </FatPill>
               {items.length > 1 && (
                 <FatPill variant="tertiary"
@@ -163,6 +171,10 @@ export function ConfirmQueue({ onToast }) {
           </div>
         )}
       </div>
+
+      <CorrectSheet open={correcting} item={item}
+                    onClose={() => setCorrecting(false)}
+                    onResolved={async () => { setIndex(0); await refresh(); }} />
     </div>
   );
 }

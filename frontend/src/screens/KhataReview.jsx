@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { BackBar } from "../components/BackBar.jsx";
 import { Processing } from "../components/Processing.jsx";
 import { TraceRelay } from "../components/TraceRelay.jsx";
+import { RowEditor } from "../components/RowEditor.jsx";
 import { Card, ConfidenceChip, FatPill, NewBadge } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { ddmmyyyy, inr } from "../lib/format.js";
@@ -83,6 +84,7 @@ function MockPage({ rows, selected }) {
 export function KhataReview({ onToast }) {
   const { importId } = useParams();
   const [selected, setSelected] = useState(null);
+  const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const { data: fleet } = usePolling(api.fleet, { interval: 0 });
@@ -131,7 +133,7 @@ export function KhataReview({ onToast }) {
 
         <div className="bg-card rounded-card overflow-hidden">
           {rows.map((row) => (
-            <button
+            <div
               key={row.row_id}
               onClick={() => setSelected(selected === row.row_id ? null : row.row_id)}
               className={`w-full px-[18px] py-[13px] text-left border-b border-separator
@@ -170,10 +172,25 @@ export function KhataReview({ onToast }) {
                   </div>
                 </div>
               </div>
-            </button>
+              {/* Any row can be wrong, not only the ones the agent doubted. */}
+              {selected === row.row_id && !committed && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditing(row); }}
+                  className="mt-2.5 text-meta font-semibold text-accent"
+                >
+                  Edit this entry
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
+
+      <RowEditor
+        open={Boolean(editing)} row={editing} importId={importId}
+        onClose={() => setEditing(null)}
+        onSaved={async () => { await refresh(); onToast?.("Entry updated"); }}
+      />
 
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-bg/95 backdrop-blur">
         <div className="mx-auto max-w-[430px] px-5 pt-3 pb-[22px] space-y-1.5 safe-bottom">
