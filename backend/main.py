@@ -24,12 +24,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from agents import router as agent_router
-from api import actions, demo, reads
-from core import authz, ids
+from api import actions, demo, reads, setup
+from core import auth, authz, ids
 from core.config import LOCAL_STORE, PROJECT, PUBSUB_TOPIC, STORE
 
 logging.basicConfig(level=logging.INFO)
@@ -41,9 +41,16 @@ app.add_middleware(
     allow_origins=json.loads(os.environ.get("CORS_ORIGINS", '["*"]')),
     allow_methods=["*"], allow_headers=["*"],
 )
+app.include_router(setup.router)
 app.include_router(reads.router)
 app.include_router(actions.router)
 app.include_router(demo.router)
+
+# The only paths that work before you are signed in. `/api/setup` closes behind
+# itself once a shop exists, and `/api/media` is left open because the PWA loads
+# photos and PDFs into <img> and <a> tags that cannot carry a header.
+OPEN_PATHS = ("/api/setup/state", "/api/setup", "/api/session", "/api/healthz",
+              "/healthz", "/api/media/", "/pubsub/push", "/jobs/")
 
 EVENT_TYPES = {"sale_order", "purchase_inv", "khata_page"}
 _ID_FOR = {"sale_order": ("order_id", ids.order_id),
@@ -55,6 +62,26 @@ def _publisher():
     from google.cloud import pubsub_v1
     client = pubsub_v1.PublisherClient()
     return client, client.topic_path(PROJECT, PUBSUB_TOPIC)
+
+
+@app.middleware("http")
+async def require_owner(request: Request, call_next):
+    """Every API route needs the shop's session token.
+
+    The ledger is the shop's customers' financial history; it does not get
+    served to anyone who happens to know the URL. Non-API paths fall through so
+    the PWA shell itself always loads — the app then shows its own lock screen.
+    """
+    path = request.url.path
+    if not path.startswith("/api/") or path.startswith(OPEN_PATHS):
+        return await call_next(request)
+    if not auth.passcode_required():
+        return await call_next(request)      # not set up yet; nothing to protect
+    header = request.headers.get("authorization") or ""
+    token = header[7:] if header.lower().startswith("bearer ") else None
+    if auth.read_token(token) is None:
+        return JSONResponse({"detail": "sign in required"}, status_code=401)
+    return await call_next(request)
 
 
 @app.get("/api/healthz")

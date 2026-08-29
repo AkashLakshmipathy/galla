@@ -1,6 +1,31 @@
 // One place that talks to the backend. Every screen goes through here so that
 // polling cadence, error shape and the offline flag are consistent.
 const BASE = import.meta.env.VITE_API_BASE ?? "";
+const TOKEN_KEY = "galla.session";
+
+export const session = {
+  get: () => {
+    try {
+      return localStorage.getItem(TOKEN_KEY);
+    } catch {
+      return null;          // private browsing, or storage blocked
+    }
+  },
+  set: (token) => {
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+    } catch {
+      /* the app still works for this session, it just will not be remembered */
+    }
+  },
+  clear: () => {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      /* nothing to do */
+    }
+  },
+};
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -10,11 +35,23 @@ export class ApiError extends Error {
 }
 
 async function request(path, options = {}) {
+  const token = session.get();
+  const headers = { ...(options.headers ?? {}) };
+  if (options.body) headers["content-type"] = "application/json";
+  if (token) headers.authorization = `Bearer ${token}`;
+
   const response = await fetch(`${BASE}${path}`, {
-    headers: options.body ? { "content-type": "application/json" } : undefined,
     ...options,
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
+  if (response.status === 401) {
+    // The passcode changed, or the session simply aged out. Drop the stale
+    // token so the app falls back to its lock screen rather than looping.
+    session.clear();
+    window.dispatchEvent(new Event("galla:signed-out"));
+    throw new ApiError("sign in required", 401);
+  }
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -28,6 +65,12 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  setupState: () => request("/api/setup/state"),
+  setupShop: (body) => request("/api/setup", { method: "POST", body }),
+  signIn: (passcode) => request("/api/session", { method: "POST", body: { passcode } }),
+  eraseEverything: (passcode, confirm) =>
+    request("/api/setup/erase", { method: "POST", body: { passcode, confirm } }),
+
   fleet: () => request("/api/fleet"),
   shop: () => request("/api/shop"),
   counter: () => request("/api/counter"),
@@ -66,7 +109,11 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     form.append("kind", kind);
-    const response = await fetch(`${BASE}/api/upload`, { method: "POST", body: form });
+    const token = session.get();
+    const response = await fetch(`${BASE}/api/upload`, {
+      method: "POST", body: form,
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
+    });
     if (!response.ok) throw new ApiError("upload failed", response.status);
     return response.json();
   },
