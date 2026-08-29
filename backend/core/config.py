@@ -13,6 +13,32 @@ changes between the two — only where bytes land.
 import os
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_dotenv() -> None:
+    """Read `.env` at the repo root, without overriding the real environment.
+
+    The README tells you to `cp .env.example .env`, so something has to read it.
+    Real values already exported — and everything Cloud Run injects — win, so a
+    stale local file can never shadow a deployed setting. `.env` is gitignored;
+    production secrets belong in Secret Manager, not here.
+    """
+    path = _REPO_ROOT / ".env"
+    if not path.exists():
+        return
+    for line in path.read_text("utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.split(" #")[0].strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
+
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "galla-hackathon")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "asia-south1")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
