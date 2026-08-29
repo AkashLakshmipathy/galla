@@ -159,12 +159,23 @@ def _totals(lines: list[dict], printed: dict | None = None) -> dict:
     return totals
 
 
-def _queue_uncertain(purchase_id: str, lines: list[dict],
-                     image_uri: str | None) -> int:
+def _queue_uncertain(purchase_id: str, lines: list[dict], image_uri: str | None,
+                     totals: dict | None = None) -> int:
+    """Ask about as little as possible.
+
+    When our line arithmetic reproduces the total printed on the bill, the lines
+    are verified as a set: a misread quantity or rate would not have summed to
+    the supplier's own figure. A line that merely *looks* uncertain is then not
+    worth a question, and asking anyway teaches the owner to tap Confirm without
+    reading — which costs more than the occasional wrong line it catches.
+    """
+    verified = totals and not totals.get("rounding_difference")
     queued = 0
     for index, line in enumerate(lines):
         if line.get("new_sku") and not line.get("near_miss"):
             continue          # not uncertain — just new. It will be created.
+        if verified and not line.get("near_miss"):
+            continue          # the bill's own total vouches for it
         if not confirm_queue.is_uncertain(line["confidence"]):
             continue
         queued += 1
@@ -189,7 +200,8 @@ def run(payload: dict, trace) -> dict:
                                  "taxable": extraction.get("printed_taxable")})
         unread = not lines
         low = sum(1 for line in lines
-                  if confirm_queue.is_uncertain(line["confidence"]))
+                  if confirm_queue.is_uncertain(line["confidence"])
+                  and not (line.get("new_sku") and not line.get("near_miss")))
 
         supplier_name = extraction.get("supplier_name_raw", "")
         supplier_gstin = extraction.get("supplier_gstin")
@@ -213,7 +225,7 @@ def run(payload: dict, trace) -> dict:
         }
         db().collection("purchases").document(purchase_id).set(purchase)
         trace.set_ref("purchase", purchase_id)
-        _queue_uncertain(purchase_id, lines, image_uri)
+        _queue_uncertain(purchase_id, lines, image_uri, totals)
 
         new_skus = sum(1 for line in lines
                        if line.get("new_sku") and not line.get("near_miss"))

@@ -246,14 +246,29 @@ def _resolve_rows(raw_rows: list[dict], page_party: str | None = None,
     return rows
 
 
-def _queue_uncertain(import_id: str, rows: list[dict],
-                     image_uri: str | None) -> int:
-    """The card carries the row's bbox, so the owner sees the actual ink rather
-    than being asked to trust a number in a list."""
+def _queue_uncertain(import_id: str, rows: list[dict], image_uri: str | None,
+                     check: dict | None = None) -> int:
+    """Ask about as little as possible.
+
+    A page whose own totals reconcile has already checked itself: opening plus
+    what was bought minus what was paid reaches the closing figure the
+    shopkeeper wrote. A misread amount would have broken that. So when the
+    arithmetic agrees, an individually shaky-looking row is not worth a
+    question — the page as a whole is evidence the row is right, and asking
+    anyway trains the owner to tap through without looking, which is worse than
+    not asking at all.
+
+    When the arithmetic does not agree, something genuinely is wrong. Even then
+    only the least legible rows are raised, because the gap lives in one or two
+    of them and a queue of eleven cards buries which.
+    """
+    if check and check.get("balances"):
+        return 0
+
+    doubtful = sorted((r for r in rows if r["status"] == "needs_confirm"),
+                      key=lambda r: r["confidence"])[:3]
     queued = 0
-    for row in rows:
-        if row["status"] != "needs_confirm":
-            continue
+    for row in doubtful:
         queued += 1
         known_party = bool(row.get("party_id"))
         confirm_queue.enqueue(
@@ -284,6 +299,11 @@ def run(payload: dict, trace) -> dict:
                            if r.get("new_party") and not r.get("near_miss")})
 
         check = arithmetic_check(extraction, rows)
+        if check.get("balances"):
+            # The page proved itself. Nothing here needs a human.
+            for row in rows:
+                if row["status"] == "needs_confirm" and row.get("party_id"):
+                    row["status"] = "auto_accepted"
         record = {
             "import_id": import_id,
             "party_name_raw": extraction.get("party_name_raw"),
@@ -301,7 +321,7 @@ def run(payload: dict, trace) -> dict:
         }
         db().collection("khata_imports").document(import_id).set(record)
         trace.set_ref("khata_import", import_id)
-        _queue_uncertain(import_id, rows, image_uri)
+        _queue_uncertain(import_id, rows, image_uri, check)
 
         if unread:
             # Nothing was read. Saying so is the only honest answer; inventing

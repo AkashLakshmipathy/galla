@@ -545,3 +545,54 @@ def test_the_account_ends_on_the_balance_written_on_the_page(seeded):
     adjustment = next(s.to_dict() for s in db().collection("ledger").stream()
                       if "could not be read" in (s.to_dict().get("note") or ""))
     assert adjustment["amount"] == abs(result["reconciled_by"])
+
+
+# ------------------------------------------- asking as little as possible
+def test_a_page_that_reconciles_asks_nothing(seeded):
+    """Opening plus bought minus paid reaching the shopkeeper's own closing
+    figure is evidence every amount was read correctly. Asking anyway trains him
+    to tap through without looking, which is worse than not asking."""
+    from agents import router
+    record = router.handle("khata_page", {})
+    ref = db().collection("khata_imports").document(record["import_id"])
+    rows = ref.get().to_dict()["rows"]
+    bought = sum(int(r["amount"]) for r in rows
+                 if r["entry_type"] != "payment_received")
+    paid = sum(int(r["amount"]) for r in rows if r["entry_type"] == "payment_received")
+
+    import agents.khata_digitizer_agent as khata
+    check = khata.arithmetic_check(
+        {"opening_balance": 1000, "closing_balance": 1000 + bought - paid}, rows)
+    assert check["balances"]
+    assert khata._queue_uncertain(record["import_id"], rows, None, check) == 0
+
+
+def test_a_page_that_does_not_reconcile_asks_about_the_worst_rows_only(seeded):
+    """The gap lives in one or two lines. A queue of eleven cards buries which."""
+    import agents.khata_digitizer_agent as khata
+    rows = [{"row_id": f"r{i}", "status": "needs_confirm", "confidence": 0.1 * i,
+             "amount": 100, "bbox": {}, "party_id": "selvam",
+             "party_name_raw": "Selvam", "alternatives": []} for i in range(1, 9)]
+    queued = khata._queue_uncertain("imp_x", rows, None, {"balances": False})
+    assert queued == 3
+
+
+def test_a_bill_whose_total_matches_asks_nothing(seeded):
+    """A misread quantity or rate would not have summed to the supplier's own
+    printed figure."""
+    import agents.purchase_entry_agent as pe
+    lines = [{"sku_id": "plm-gi-075", "description_raw": "GI PIPE", "qty": 1,
+              "rate": 100, "amount": 100, "gst_rate": 18, "confidence": 0.4,
+              "matched": True}]
+    totals = pe._totals(lines)                       # no printed total: no diff
+    assert pe._queue_uncertain("pur_x", lines, None, totals) == 0
+
+
+def test_a_bill_whose_total_disagrees_still_asks(seeded):
+    import agents.purchase_entry_agent as pe
+    lines = [{"sku_id": "plm-gi-075", "description_raw": "GI PIPE", "qty": 1,
+              "rate": 100, "amount": 100, "gst_rate": 18, "confidence": 0.4,
+              "matched": True}]
+    totals = pe._totals(lines, {"total": 9999})
+    assert totals["rounding_difference"] != 0
+    assert pe._queue_uncertain("pur_y", lines, None, totals) == 1
