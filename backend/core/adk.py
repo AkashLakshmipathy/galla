@@ -23,7 +23,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
-from core.config import GEMINI_MODEL, LLM_AVAILABLE, LLM_TIMEOUT_SECONDS
+from core.config import (GEMINI_MODEL, LLM_AVAILABLE, LLM_TIMEOUT_SECONDS,
+                         PROJECT, USE_VERTEX, VERTEX_LOCATION)
 
 _JSON_BLOCK = re.compile(r"\{.*\}|\[.*\]", re.DOTALL)
 
@@ -111,13 +112,23 @@ def parse_json(text: str) -> Any:
 
 
 # ----------------------------------------------------------------- the bridge
+def _vertex_model(model: str):
+    """On Vertex the model must be addressed through a client pinned to the
+    region that actually serves it, which is not the region the data lives in."""
+    if not USE_VERTEX:
+        return model                       # AI Studio: the id is enough
+    from google.adk.models import Gemini
+    return Gemini(model=model, client_kwargs={
+        "vertexai": True, "project": PROJECT, "location": VERTEX_LOCATION})
+
+
 def _build_agent(name: str, instruction: str, model: str):
     from google.adk.agents import LlmAgent
     from google.genai import types
 
     return LlmAgent(
         name=name,
-        model=model,
+        model=_vertex_model(model),
         description=f"Galla {name} agent",
         instruction=instruction,
         generate_content_config=types.GenerateContentConfig(

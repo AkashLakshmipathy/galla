@@ -57,8 +57,12 @@ def _publisher():
     return client, client.topic_path(PROJECT, PUBSUB_TOPIC)
 
 
+@app.get("/api/healthz")
 @app.get("/healthz")
 def healthz():
+    """Both paths, because Google's frontend swallows a bare `/healthz` on Cloud
+    Run — it returns its own 404 and the request never reaches the container.
+    Anything under `/api/` routes through untouched."""
     return {"ok": True, "store": STORE}
 
 

@@ -11,6 +11,8 @@ work asynchronously: parsing Tamil voice notes, reading handwritten material lis
 extracting supplier invoices, digitizing paper ledgers, **deciding on contractor credit**,
 and compiling monthly GST summaries unattended.
 
+**Live:** https://galla-tosijyjgva-el.a.run.app · `asia-south1`
+
 ![Architecture](docs/architecture.png)
 
 ---
@@ -130,11 +132,11 @@ only be *partly* proven without a Google Cloud project, so here is the honest sp
 | Integration | State |
 |---|---|
 | Google ADK — `LlmAgent`, `Runner`, `InMemorySessionService`, multimodal `Content` | **Constructs and dispatches.** Driven to the live Gemini endpoint, which rejected only the API key — the request shape is accepted. The model's *response* has never been parsed against a real reply. |
-| Gemini | **Working.** The full sale chain runs on live Gemini in ~7s: intake on `gemini-3.5-flash-lite`, Credit Guardian on `gemini-3.5-flash`, real token counts in the trace. Verified via an AI Studio key; the Vertex path (same SDK, `GOOGLE_GENAI_USE_VERTEXAI=true`) is not yet exercised. |
-| Firestore | **API contract tested** against the real client (`tests/test_firestore_contract.py` builds every query shape the code uses, with anonymous credentials and no network). No document has been written to a real database. |
+| Gemini via Vertex AI | **Working in production.** Intake on `gemini-3.5-flash-lite`, Credit Guardian on `gemini-3.5-flash`, real token counts in `agent_traces`. |
+| Firestore | **Working in production**, `asia-south1`. Also contract-tested against the real client offline (`tests/test_firestore_contract.py`). |
 | Firestore transactions | Real semantics: `core/localstore.py` deliberately does **not** offer read-your-writes, because Firestore does not. That faithfulness caught a lost-stock bug on duplicated invoice lines. |
-| Pub/Sub · Cloud Scheduler · Cloud Run | **Unproven.** Never deployed. |
-| Firebase rules | Written and shipped with `firebase.json`, never published. |
+| Cloud Run · Pub/Sub · Cloud Scheduler · Cloud Storage | **Working in production.** Event in → push subscription → agent chain → verdict; Scheduler produced a GST register unattended; quotation PDF written to `gs://galla-media`. |
+| Firestore rules | **Published** to `cloud.firestore`. |
 | Owner authentication | **Not built.** See below. |
 
 ### The one thing a judge will poke at
@@ -198,8 +200,8 @@ Galla produces a **CA-ready summary**. It does not file your GST.
 - [x] `agent_traces` documents readable in the Firestore console
 - [x] Architecture diagram at `docs/architecture.png`
 - [x] Spin-up instructions verified from a clean checkout
-- [ ] `docker build .` run once *(no Docker daemon on the build machine)*
-- [ ] Deployed to Cloud Run with the push subscription live *(needs a GCP project)*
-- [ ] Scheduler job with an execution in its history *(run `gcloud scheduler jobs run gst-compile`)*
+- [x] `docker build .` verified; image runs and passes its own tests
+- [x] Deployed to Cloud Run with the Pub/Sub push subscription live
+- [x] Scheduler job fired, with an execution in its history and a register to show for it
 - [ ] ~4-min unedited demo video per `docs/demo-script.md`
 - [ ] Repo public, or shared with `testing@devpost.com` and `cloudhackathons@google.com`

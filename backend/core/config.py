@@ -40,7 +40,17 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "galla-hackathon")
+# Where the shop's data lives. Firestore, Cloud Storage and Cloud Run are all
+# in Mumbai: lowest latency for Coimbatore, and the right answer for an
+# India-first product holding Indian traders' financial records.
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "asia-south1")
+
+# Where inference happens, which is a *different* question. asia-south1 serves
+# gemini-3.5-flash but not flash-lite; the `global` endpoint serves both and
+# routes to whichever region has capacity. Model calls are transient — no record
+# is stored there — so the residency story is unaffected by pointing them at
+# `global` while every stored byte stays in Mumbai.
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
 # Pinned, never a `-latest` alias. Google's own docs say the aliases are
 # hot-swapped with every release and are not recommended for production; the
 # alias was also the one returning 503 under load while pinned models answered
