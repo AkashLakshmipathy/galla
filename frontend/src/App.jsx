@@ -55,7 +55,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Counter onToast={showToast} />} />
           <Route path="/approvals" element={<Approvals />} />
-          <Route path="/shop" element={<Shop />} />
+          <Route path="/shop" element={<Shop onToast={showToast} />} />
           <Route path="/orders/:orderId" element={<OrderDetail onToast={showToast} />} />
           <Route path="/purchases/:purchaseId"
                  element={<InvoiceReview onToast={showToast} />} />

@@ -40,6 +40,7 @@ export const api = {
   parties: () => request("/api/parties"),
   ledger: (id) => request(`/api/parties/${id}/ledger`),
   inventory: () => request("/api/inventory"),
+  duplicates: () => request("/api/parties/duplicates"),
   dashboard: () => request("/api/dashboard"),
   gst: () => request("/api/gst"),
   gstPeriod: (period) => request(`/api/gst/${period}`),
@@ -54,6 +55,8 @@ export const api = {
   confirmPurchase: (id) => request(`/api/purchases/${id}/confirm`, { method: "POST" }),
   editKhataRows: (id, rows) => request(`/api/khata/${id}/rows`, { method: "POST", body: rows }),
   commitKhata: (id) => request(`/api/khata/${id}/commit`, { method: "POST" }),
+  mergeParties: (source_id, target_id) =>
+    request("/api/parties/merge", { method: "POST", body: { source_id, target_id } }),
 
   demoScenarios: () => request("/api/demo/scenarios"),
   demoSend: (key) => request(`/api/demo/send/${key}`, { method: "POST" }),

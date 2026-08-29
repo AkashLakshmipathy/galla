@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Gauge } from "../components/Gauge.jsx";
+import { MergeSheet } from "../components/MergeSheet.jsx";
 import { Card, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { inr, monthName, timeOfDay } from "../lib/format.js";
@@ -25,11 +27,20 @@ function StatRow({ label, value, delta, deltaTone }) {
   );
 }
 
-export function Shop() {
+export function Shop({ onToast }) {
   const navigate = useNavigate();
+  const [pair, setPair] = useState(null);
   const { data } = usePolling(api.dashboard, { interval: 5000 });
+  const { data: dupes, refresh: refreshDupes } = usePolling(api.duplicates,
+    { interval: 15000 });
   const exposure = data?.exposure;
   const gst = data?.gst;
+
+  const merge = async (sourceId, targetId) => {
+    const result = await api.mergeParties(sourceId, targetId);
+    onToast?.(`Merged · now owes ${inr(result.combined_outstanding)} on one profile`);
+    await refreshDupes();
+  };
 
   return (
     <div className="px-gutter pt-2 space-y-5">
@@ -109,6 +120,36 @@ export function Shop() {
         </div>
       )}
 
+      {(dupes?.pairs ?? []).length > 0 && (
+        <div>
+          <SectionLabel>Possible duplicates</SectionLabel>
+          <GroupedList>
+            {dupes.pairs.map((p) => (
+              <Row key={`${p.a.party_id}-${p.b.party_id}`} chevron
+                   onClick={() => setPair(p)}>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber shrink-0" />
+                  <span className="text-body font-semibold flex-1 truncate">
+                    {p.a.name} · {p.b.name}
+                  </span>
+                  <span className="text-body font-semibold tnum">
+                    {inr(p.combined_outstanding)}
+                  </span>
+                </div>
+                <div className="text-meta text-text-2 mt-1 pl-4">
+                  Same trader? {p.reason} — together they owe{" "}
+                  {inr(p.combined_outstanding)}, which neither profile shows.
+                </div>
+              </Row>
+            ))}
+          </GroupedList>
+          <p className="text-micro text-text-3 mt-2 px-1">
+            Two profiles for one contractor hide half his exposure from the Credit
+            Guardian.
+          </p>
+        </div>
+      )}
+
       {(data?.low_stock ?? []).length > 0 && (
         <div>
           <SectionLabel>Low stock</SectionLabel>
@@ -127,6 +168,9 @@ export function Shop() {
           </GroupedList>
         </div>
       )}
+
+      <MergeSheet open={Boolean(pair)} pair={pair} onClose={() => setPair(null)}
+                  onMerge={merge} />
     </div>
   );
 }

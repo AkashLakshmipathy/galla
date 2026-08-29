@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Response
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from core import serialize, storage
+from core import merge, serialize, storage
 from core.adk import fleet
 from core.config import CONFIDENCE_THRESHOLD, SHOP_ID
 from core.firestore_client import db
@@ -134,11 +134,57 @@ def parties():
 
 @router.get("/parties/{party_id}/ledger")
 def party_ledger(party_id: str, limit: int = 50):
-    entries = _docs("ledger", "date", limit=limit,
-                    where=("party_id", "==", party_id))
-    return {"party": serialize.party_view(
-        db().collection("parties").document(party_id).get().to_dict()),
-        "entries": serialize.jsonable(entries)}
+    """One consolidated history, even when profiles have been merged.
+
+    Merging never rewrites a ledger row — an entry filed twenty years ago under
+    a differently-spelled name stays filed there, which is what makes the merge
+    reversible and the audit trail honest. The consolidation happens here, on
+    read: the survivor's history is its own entries plus every merged profile's,
+    in date order, each tagged with the name it was originally recorded under.
+    """
+    survivor = merge.resolve(party_id)
+    sources = merge.merged_sources(survivor)
+
+    entries = []
+    for owner in [survivor, *sources]:
+        name = (db().collection("parties").document(owner).get().to_dict()
+                or {}).get("name")
+        for entry in _docs("ledger", "date", limit=limit,
+                           where=("party_id", "==", owner)):
+            entries.append({**entry,
+                            "recorded_under": name if owner != survivor else None,
+                            "recorded_under_id": owner if owner != survivor else None})
+    entries.sort(key=lambda e: str(e.get("date") or ""), reverse=True)
+
+    view = serialize.party_view(
+        db().collection("parties").document(survivor).get().to_dict())
+    if view is not None:
+        view["merged_from"] = [
+            {"party_id": s,
+             "name": (db().collection("parties").document(s).get().to_dict()
+                      or {}).get("name")}
+            for s in sources]
+    return {"party": view,
+            "requested_id": party_id,
+            "redirected": survivor != party_id,
+            "entries": serialize.jsonable(entries[:limit])}
+
+
+@router.get("/parties/duplicates")
+def duplicate_parties():
+    """Profiles that look like the same trader. A suggestion, never an action —
+    two ledgers for one contractor hides half his exposure, so the threshold is
+    deliberately loose and a human decides."""
+    pairs = []
+    for pair in merge.find_duplicates():
+        a = db().collection("parties").document(pair.a).get().to_dict() or {}
+        b = db().collection("parties").document(pair.b).get().to_dict() or {}
+        pairs.append({
+            "score": pair.score, "reason": pair.reason,
+            "combined_outstanding": pair.combined_outstanding,
+            "a": serialize.party_view(a), "b": serialize.party_view(b),
+        })
+    return {"pairs": pairs, "count": len(pairs)}
 
 
 @router.get("/inventory")

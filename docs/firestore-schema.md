@@ -198,6 +198,38 @@ Rules, in order of how much they matter:
 4. **A new party gets the shop's default credit limit**, never one inferred from
    the page.
 
+## Merging duplicate profiles
+
+Handwriting varies and a name gets spelled two ways over twenty years, so
+duplicates arrive despite the ambiguous-band rule above. Two profiles for one
+contractor is the worst state this system can be in: his real exposure is the
+sum of both while the Credit Guardian only ever sees one, so the shop can extend
+nearly double the credit it believes it has.
+
+`parties` gains:
+
+```
+merged_into: "selvam" | null     // this profile was folded into that one
+merged_at, merged_by
+aliases_merged: ["Selvan"]       // names this profile has absorbed
+active: false                    // set on the profile that was merged away
+```
+
+**The ledger is never rewritten by a merge.** Repointing `party_id` on historical
+entries would make an old khata page silently vanish from the profile it was
+filed under — exactly the quiet history-editing the append-only rule exists to
+prevent. Instead:
+
+- the outstanding balance moves to the survivor, whose **credit limit is left
+  alone** (summing two limits would grant more rope than anyone agreed to);
+- `orders`, `purchases` and `khata_imports.rows` are repointed, because those
+  name a party as a pointer rather than as history;
+- `ledger` rows stay exactly where they were written, and
+  `GET /api/parties/{id}/ledger` unions the survivor's entries with every merged
+  profile's, each tagged with the name it was recorded under.
+
+Because nothing is destroyed, a merge is reversible.
+
 ## Collection: `confirm_queue`
 
 ```

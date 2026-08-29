@@ -126,7 +126,9 @@ def main(reset: bool = False):
     for p in PARTIES:
         if p["type"] != "customer":
             continue
-        c.collection("ledger").add({
+        entry_id = f"led_open_{p['party_id']}"
+        c.collection("ledger").document(entry_id).set({
+            "entry_id": entry_id,          # the schema requires it; reads join on it
             "party_id": p["party_id"], "date": date(2026, 6, 1).isoformat(),
             "type": "opening_balance", "amount": p["credit"]["outstanding"],
             "direction": "debit", "balance_after": p["credit"]["outstanding"],

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from agents import router as agent_router
 from agents import stock_pricing_agent
-from core import catalog, ids, parties, serialize, stock, storage
+from core import catalog, ids, merge, parties, serialize, stock, storage
 from core.config import CONFIDENCE_THRESHOLD
 from core.firestore_client import db
 from core.money import order_totals, parse_amount
@@ -279,6 +279,24 @@ def _write_back(item: dict, value, accept_extracted: bool) -> None:
         subtotal, gst, total = order_totals(priced)
         ref.update({"lines": priced, "subtotal": subtotal, "gst": gst,
                     "total": total})
+
+
+class Merge(BaseModel):
+    source_id: str
+    target_id: str
+
+
+@router.post("/parties/merge")
+def merge_party_profiles(body: Merge):
+    """Fold one profile into another. The balance moves and the documents
+    follow; the ledger is never rewritten, so this can be undone."""
+    try:
+        return serialize.jsonable(
+            merge.merge_parties(body.source_id, body.target_id))
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post("/purchases/{purchase_id}/confirm")
