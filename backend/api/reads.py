@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Response
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from core import merge, serialize, storage
+from core import books, catalog, merge, serialize, storage
 from core.adk import fleet
 from core.config import CONFIDENCE_THRESHOLD, SHOP_ID
 from core.firestore_client import db
@@ -164,9 +164,13 @@ def party_ledger(party_id: str, limit: int = 50):
              "name": (db().collection("parties").document(s).get().to_dict()
                       or {}).get("name")}
             for s in sources]
+    kind = "supplier" if (view or {}).get("type") == "supplier" else "customer"
+    stats, _ = books.ledger_rollup(kind, "all")
+    mine = stats.get(survivor, {"out": 0, "back": 0, "first": None})
     return {"party": view,
             "requested_id": party_id,
             "redirected": survivor != party_id,
+            "given": mine["out"], "received": mine["back"], "since": mine["first"],
             "entries": serialize.jsonable(entries[:limit])}
 
 
@@ -188,52 +192,27 @@ def duplicate_parties():
 
 
 @router.get("/credit")
-def credit_book(months: int = 6):
-    """The khata, digitised: who owes what, and how the book has moved.
+def credit_book(period: str = "month", limit_periods: int = 24):
+    """The khata: who owes the shop, how old the debt is, and how the book moved.
 
-    Everything here is derived from `ledger`, not from a maintained counter, so
-    the history and the balances cannot drift apart. `parties.credit.outstanding`
-    stays the fast path for a single verdict; this is the slow, honest read the
-    owner uses to understand his own book.
+    Customers only. A supplier the shop *owes* money to has no business in a list
+    headed "who owes you" — it overstates what the shop is worth by twice the
+    figure, once by adding it and once by not subtracting it.
     """
-    entries = _docs("ledger", "date", limit=5000)
-    parties = {s.id: (s.to_dict() or {}) for s in db().collection("parties").stream()}
-    live = {i: p for i, p in parties.items() if not p.get("merged_into")}
+    stats, periods = books.ledger_rollup("customer", period)
+    live = books.parties_of("customer")
 
-    today = datetime.now(timezone.utc).date()
-    buckets = {"current": 0, "30": 0, "60": 0, "90+": 0}
-    by_month: dict[str, dict] = {}
-    per_party: dict[str, dict] = {}
-
-    for entry in entries:
-        party_id = merge.resolve(entry.get("party_id") or "")
-        if party_id not in live:
-            continue
-        amount = int(entry.get("amount") or 0)
-        given = entry.get("direction") == "debit"      # goods out on credit
-        month = str(entry.get("date") or "")[:7]
-        if month:
-            row = by_month.setdefault(month, {"period": month, "given": 0,
-                                              "received": 0, "entries": 0})
-            row["given" if given else "received"] += amount
-            row["entries"] += 1
-        stats = per_party.setdefault(party_id, {"given": 0, "received": 0,
-                                                "last_activity": None})
-        stats["given" if given else "received"] += amount
-        stats["last_activity"] = max(filter(None, [stats["last_activity"],
-                                                   entry.get("date")]), default=None)
-
+    ageing = {"current": 0, "30": 0, "60": 0, "90+": 0}
     rows = []
     for party_id, party in live.items():
         credit = party.get("credit") or {}
         outstanding = int(credit.get("outstanding") or 0)
         limit = int(credit.get("limit") or 0)
         days = days_since(credit.get("last_payment_date"))
-        stats = per_party.get(party_id, {"given": 0, "received": 0,
-                                         "last_activity": None})
-        bucket = ("current" if days <= 30 else "30" if days <= 60
-                  else "60" if days <= 90 else "90+")
-        buckets[bucket] += outstanding
+        mine = stats.get(party_id, {"out": 0, "back": 0, "entries": 0,
+                                    "first": None, "last": None})
+        bucket = books.bucket_for(days)
+        ageing[bucket] += outstanding
         rows.append({
             "party_id": party_id, "name": party.get("name"),
             "name_ta": party.get("name_ta"), "phone": party.get("phone"),
@@ -242,21 +221,18 @@ def credit_book(months: int = 6):
             "outstanding": outstanding, "limit": limit,
             "exposure_pct": int(round(outstanding / limit * 100)) if limit else 0,
             "days_since_payment": days, "bucket": bucket,
-            "given": stats["given"], "received": stats["received"],
-            "last_activity": stats["last_activity"],
+            "given": mine["out"], "received": mine["back"],
+            "entries": mine["entries"], "since": mine["first"],
+            "last_activity": mine["last"],
         })
     rows.sort(key=lambda r: r["outstanding"], reverse=True)
 
-    months_list = sorted(by_month.values(), key=lambda m: m["period"],
-                         reverse=True)[:months]
-    for row in months_list:
-        row["net"] = row["given"] - row["received"]
-
-    total = sum(r["outstanding"] for r in rows)
+    shown = periods[-limit_periods:] if limit_periods else periods
     return {
+        "period": period,
         "parties": rows,
         "totals": {
-            "outstanding": total,
+            "outstanding": sum(r["outstanding"] for r in rows),
             "limit": sum(r["limit"] for r in rows),
             "customers": len(rows),
             "in_debt": sum(1 for r in rows if r["outstanding"] > 0),
@@ -265,14 +241,90 @@ def credit_book(months: int = 6):
             "given_all_time": sum(r["given"] for r in rows),
             "received_all_time": sum(r["received"] for r in rows),
         },
-        "ageing": buckets,
-        "months": list(reversed(months_list)),
+        "ageing": ageing,
+        "periods": [{"period": p["period"], "given": p["out"],
+                     "received": p["back"], "net": p["net"],
+                     "entries": p["entries"], "parties": p["parties"]}
+                    for p in shown],
+    }
+
+
+@router.get("/purchases-book")
+def purchases_book(period: str = "month", limit_periods: int = 24):
+    """The other half of the book: what the shop bought, from whom, and when.
+
+    Supplier balances come from the ledger; what was actually bought comes from
+    the bills themselves, so the owner can ask "what have I bought from Annai
+    this year, and at what rate" and get an answer off his own paperwork.
+    """
+    stats, periods = books.ledger_rollup("supplier", period)
+    buying, per_sku = books.purchase_rollup()
+    live = books.parties_of("supplier")
+    catalog_rows = catalog.load()
+
+    rows = []
+    for party_id, party in live.items():
+        credit = party.get("credit") or {}
+        mine = stats.get(party_id, {"out": 0, "back": 0, "entries": 0,
+                                    "first": None, "last": None})
+        bought = buying.get(party_id, {"bills": 0, "value": 0, "items": 0,
+                                       "last_bill": None, "skus": {}})
+        top = sorted(bought["skus"].items(), key=lambda kv: kv[1]["value"],
+                     reverse=True)[:3]
+        rows.append({
+            "party_id": party_id, "name": party.get("name"),
+            "gstin": party.get("gstin"), "phone": party.get("phone"),
+            "provisional": party.get("provisional", False),
+            "payable": int(credit.get("outstanding") or 0),
+            "billed": mine["out"], "paid": mine["back"],
+            "bills": bought["bills"], "bill_value": bought["value"],
+            "last_bill": bought["last_bill"] or mine["last"],
+            "since": mine["first"],
+            "top_items": [{
+                "sku_id": sku,
+                "name": (catalog.by_id(sku, catalog_rows) or {}).get("name", sku),
+                "qty": round(v["qty"], 2), "value": v["value"],
+            } for sku, v in top],
+        })
+    rows.sort(key=lambda r: (r["payable"], r["bill_value"]), reverse=True)
+
+    items = sorted(
+        ({"sku_id": sku,
+          "name": (catalog.by_id(sku, catalog_rows) or {}).get("name", sku),
+          "unit": (catalog.by_id(sku, catalog_rows) or {}).get("unit", ""),
+          "qty": round(v["qty"], 2), "value": v["value"], "bills": v["bills"],
+          "suppliers": len(v["suppliers"]), "last_rate": v["last_rate"],
+          "last_date": v["last_date"]}
+         for sku, v in per_sku.items()),
+        key=lambda r: r["value"], reverse=True)
+
+    shown = periods[-limit_periods:] if limit_periods else periods
+    return {
+        "period": period,
+        "suppliers": rows,
+        "items": items,
+        "totals": {
+            "payable": sum(r["payable"] for r in rows),
+            "suppliers": len(rows),
+            "owed_to": sum(1 for r in rows if r["payable"] > 0),
+            "bills": sum(r["bills"] for r in rows),
+            # Billed comes from the ledger, the same place the payable does, so
+            # the two figures on this card can never disagree. Bill *value* is
+            # what the photographed documents add up to and can legitimately be
+            # lower — an older debt may predate any bill the shop scanned.
+            "bought_all_time": sum(r["billed"] for r in rows),
+            "billed_from_scans": sum(r["bill_value"] for r in rows),
+            "paid_all_time": sum(r["paid"] for r in rows),
+        },
+        "periods": [{"period": p["period"], "bought": p["out"],
+                     "paid": p["back"], "net": p["net"],
+                     "entries": p["entries"], "suppliers": p["parties"]}
+                    for p in shown],
     }
 
 
 @router.get("/inventory")
 def inventory():
-    from core import catalog
     rows = catalog.load()
     out = []
     for item in _docs("inventory", limit=200):

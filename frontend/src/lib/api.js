@@ -83,7 +83,9 @@ export const api = {
   parties: () => request("/api/parties"),
   ledger: (id) => request(`/api/parties/${id}/ledger`),
   inventory: () => request("/api/inventory"),
-  credit: () => request("/api/credit"),
+  credit: (period = "month") => request(`/api/credit?period=${period}`),
+  purchasesBook: (period = "month") =>
+    request(`/api/purchases-book?period=${period}`),
   duplicates: () => request("/api/parties/duplicates"),
   dashboard: () => request("/api/dashboard"),
   gst: () => request("/api/gst"),

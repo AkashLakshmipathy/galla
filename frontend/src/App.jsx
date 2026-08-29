@@ -10,6 +10,7 @@ import { Approvals } from "./screens/Approvals.jsx";
 import { ConfirmQueue } from "./screens/ConfirmQueue.jsx";
 import { Counter } from "./screens/Counter.jsx";
 import { Credit, PartyLedger } from "./screens/Credit.jsx";
+import { Purchases, SupplierLedger } from "./screens/Purchases.jsx";
 import { LockScreen, Onboarding } from "./screens/Onboarding.jsx";
 import { GstDetail } from "./screens/GstDetail.jsx";
 import { InvoiceReview } from "./screens/InvoiceReview.jsx";
@@ -54,7 +55,8 @@ export default function App() {
   const { data: demo } = usePolling(api.demoScenarios,
     { interval: 0, active: unlocked, deps: [unlocked] });
   const demoMode = Boolean(demo?.demo_mode);
-  const isTab = ["/", "/approvals", "/credit", "/shop"].includes(location.pathname);
+  const isTab = ["/", "/approvals", "/credit", "/purchases-book", "/shop"]
+    .includes(location.pathname);
 
   const onSent = (result, label) => {
     showToast(`${label} — the agents are on it`);
@@ -109,6 +111,8 @@ export default function App() {
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/credit" element={<Credit />} />
           <Route path="/credit/:partyId" element={<PartyLedger />} />
+          <Route path="/purchases-book" element={<Purchases />} />
+          <Route path="/purchases-book/:partyId" element={<SupplierLedger />} />
           <Route path="/shop" element={<Shop onToast={showToast} />} />
           <Route path="/orders/:orderId" element={<OrderDetail onToast={showToast} />} />
           <Route path="/purchases/:purchaseId"

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Card, Chevron, EmptyState, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
-import { ddmmyyyy, inr, monthName, shortInr } from "../lib/format.js";
+import { BookChart, PeriodTabs, TotalsRow } from "../components/BookChart.jsx";
+import { ddmmyyyy, inr } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";
 
 /* The khata, digitised — the screen the owner opens most after the counter.
@@ -19,33 +20,12 @@ const BUCKETS = [
   { key: "90+", label: "Over 90 days", tone: "bg-red" },
 ];
 
-function MonthBars({ months = [] }) {
-  const peak = Math.max(1, ...months.map((m) => Math.max(m.given, m.received)));
-  return (
-    <div className="flex items-end gap-2 h-[104px] mt-4">
-      {months.map((m) => (
-        <div key={m.period} className="flex-1 flex flex-col items-center gap-1">
-          <div className="flex-1 w-full flex items-end justify-center gap-[3px]">
-            <div className="w-[42%] bg-ink rounded-t-[3px] transition-[height]"
-                 style={{ height: `${(m.given / peak) * 100}%` }}
-                 title={`Given ${inr(m.given)}`} />
-            <div className="w-[42%] bg-green rounded-t-[3px] transition-[height]"
-                 style={{ height: `${(m.received / peak) * 100}%` }}
-                 title={`Received ${inr(m.received)}`} />
-          </div>
-          <span className="text-micro text-text-3">
-            {monthName(m.period).slice(0, 3)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function Credit() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
-  const { data, loading } = usePolling(api.credit, { interval: 8000 });
+  const [period, setPeriod] = useState("month");
+  const { data, loading } = usePolling(() => api.credit(period),
+    { interval: 8000, deps: [period] });
 
   const totals = data?.totals;
   const parties = (data?.parties ?? []).filter((p) =>
@@ -106,29 +86,33 @@ export function Credit() {
             </div>
           </Card>
 
-          {(data.months ?? []).length > 1 && (
+          <Card className="p-cardpad">
+            <TotalsRow items={[
+              { label: "Given, all time", value: totals.given_all_time },
+              { label: "Received, all time", value: totals.received_all_time,
+                tone: "text-green" },
+              { label: "Customers on the book", value: String(totals.customers) },
+              { label: "Credit limits total", value: totals.limit },
+            ]} />
+          </Card>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <SectionLabel className="mb-0">How the book moved</SectionLabel>
+              <PeriodTabs value={period} onChange={setPeriod} />
+            </div>
             <Card className="p-cardpad">
-              <div className="flex items-baseline justify-between">
-                <span className="text-supplier font-bold">Month by month</span>
-                <span className="text-micro text-text-3">
-                  <span className="inline-block w-2 h-2 rounded-sm bg-ink mr-1" />given
-                  <span className="inline-block w-2 h-2 rounded-sm bg-green ml-3 mr-1" />received
-                </span>
-              </div>
-              <MonthBars months={data.months} />
-              <div className="mt-4 pt-3 border-t border-separator space-y-[6px]">
-                {[...data.months].reverse().map((m) => (
-                  <div key={m.period} className="flex text-row">
-                    <span className="text-text-2 flex-1">{monthName(m.period)}</span>
-                    <span className="tnum w-[86px] text-right">{shortInr(m.given)}</span>
-                    <span className="tnum w-[86px] text-right text-green">
-                      {shortInr(m.received)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {(data.periods ?? []).length > 0 ? (
+                <BookChart periods={data.periods} granularity={period}
+                           outKey="given" backKey="received"
+                           outLabel="given" backLabel="received" />
+              ) : (
+                <p className="text-row text-text-2 text-center py-4">
+                  Nothing recorded yet.
+                </p>
+              )}
             </Card>
-          )}
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -182,7 +166,7 @@ export function Credit() {
 
 export function PartyLedger() {
   const navigate = useNavigate();
-  const partyId = window.location.pathname.split("/").pop();
+  const { partyId } = useParams();
   const { data } = usePolling(() => api.ledger(partyId), { interval: 0,
                                                           deps: [partyId] });
   if (!data) return <div className="px-gutter pt-6 text-body text-text-2">Loading…</div>;
@@ -215,6 +199,16 @@ export function PartyLedger() {
             merged into this account.
           </p>
         )}
+      </Card>
+
+      <Card className="p-cardpad mt-3.5">
+        <TotalsRow items={[
+          { label: "Given, all time", value: data.given ?? 0 },
+          { label: "Received, all time", value: data.received ?? 0,
+            tone: "text-green" },
+          { label: "Entries", value: String((data.entries ?? []).length) },
+          { label: "Trading since", value: ddmmyyyy(data.since) || "—" },
+        ]} />
       </Card>
 
       <SectionLabel className="mt-5">Every entry</SectionLabel>

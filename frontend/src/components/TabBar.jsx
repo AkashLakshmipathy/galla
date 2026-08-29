@@ -4,6 +4,7 @@ const TABS = [
   { to: "/", label: "Counter", icon: "▤" },
   { to: "/approvals", label: "Approvals", icon: "✓" },
   { to: "/credit", label: "Credit", icon: "₹" },
+  { to: "/purchases-book", label: "Purchases", icon: "⌸" },
   { to: "/shop", label: "Shop", icon: "◉" },
 ];
 
