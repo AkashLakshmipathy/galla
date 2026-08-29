@@ -130,7 +130,7 @@ only be *partly* proven without a Google Cloud project, so here is the honest sp
 | Integration | State |
 |---|---|
 | Google ADK — `LlmAgent`, `Runner`, `InMemorySessionService`, multimodal `Content` | **Constructs and dispatches.** Driven to the live Gemini endpoint, which rejected only the API key — the request shape is accepted. The model's *response* has never been parsed against a real reply. |
-| Gemini via Vertex AI | **Unproven.** No call has succeeded. Every agent has run through its deterministic fallback. `GEMINI_MODEL=gemini-flash-latest` also needs checking against what Vertex actually serves in `asia-south1`. |
+| Gemini | **Working.** The full sale chain runs on live Gemini in ~7s: intake on `gemini-3.5-flash-lite`, Credit Guardian on `gemini-3.5-flash`, real token counts in the trace. Verified via an AI Studio key; the Vertex path (same SDK, `GOOGLE_GENAI_USE_VERTEXAI=true`) is not yet exercised. |
 | Firestore | **API contract tested** against the real client (`tests/test_firestore_contract.py` builds every query shape the code uses, with anonymous credentials and no network). No document has been written to a real database. |
 | Firestore transactions | Real semantics: `core/localstore.py` deliberately does **not** offer read-your-writes, because Firestore does not. That faithfulness caught a lost-stock bug on duplicated invoice lines. |
 | Pub/Sub · Cloud Scheduler · Cloud Run | **Unproven.** Never deployed. |
@@ -192,7 +192,7 @@ Galla produces a **CA-ready summary**. It does not file your GST.
 ## Submission checklist
 
 - [x] Google ADK agent fleet written; ADK construction and dispatch verified against the live endpoint
-- [ ] One successful Gemini call *(needs credentials — every agent has only run its fallback)*
+- [x] Gemini calls succeeding against pinned Gemini 3.5+ models, with token counts in `agent_traces`
 - [x] All three credit verdict states reachable from seeded data (`kumar` green · `selvam` amber · `ravi` red)
 - [x] Invoice and khata extraction with confidence gating and tap-to-trace
 - [x] `agent_traces` documents readable in the Firestore console

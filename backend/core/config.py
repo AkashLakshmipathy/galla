@@ -41,7 +41,22 @@ _load_dotenv()
 
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "galla-hackathon")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "asia-south1")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+# Pinned, never a `-latest` alias. Google's own docs say the aliases are
+# hot-swapped with every release and are not recommended for production; the
+# alias was also the one returning 503 under load while pinned models answered
+# in a second. A pinned id is additionally the only way a judge can verify which
+# model actually ran, and the hackathon requires Gemini 3.5+.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+
+# Document parsing and other high-throughput extraction go to Flash-Lite: it is
+# what Google recommends for exactly that shape of work, and it measured ~3x
+# faster than Flash on our own prompts. Cheaper too, and the credits have to
+# last to demo day.
+GEMINI_MODEL_FAST = os.environ.get("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
+
+# A model call that hangs is worse than one that fails: the trace strip is on
+# camera. Past this, we stop waiting and use the deterministic fallback.
+LLM_TIMEOUT_SECONDS = float(os.environ.get("LLM_TIMEOUT_SECONDS", "20"))
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "galla-media")
 PUBSUB_TOPIC = os.environ.get("PUBSUB_TOPIC", "shop-events")
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.85"))
@@ -69,4 +84,7 @@ LOCAL_STORE = STORE == "local"
 # The LLM is reachable only with credentials (Vertex) or an API key (AI Studio).
 GEMINI_API_KEY = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 USE_VERTEX = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in {"1", "true"}
-LLM_AVAILABLE = bool(GEMINI_API_KEY) or (_credentials_present() and USE_VERTEX)
+LLM_AVAILABLE = (
+    not os.environ.get("GALLA_NO_LLM")
+    and (bool(GEMINI_API_KEY) or (_credentials_present() and USE_VERTEX))
+)

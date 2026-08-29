@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 from core import catalog, confirm_queue, ids, storage
 from core.adk import Media, ask
-from core.config import SHOP_ID
+from core.config import GEMINI_MODEL_FAST, SHOP_ID
 from core.firestore_client import db
 
 INSTRUCTION = """You are the intake agent for an Indian hardware shop in Coimbatore.
@@ -92,7 +92,8 @@ def _perceive(payload: dict) -> tuple[dict, object]:
     }
     prompt = ("Read the attached order and return the JSON."
               if media else f"Order as text:\n{text}\n\nReturn the JSON.")
-    result = ask("intake", INSTRUCTION, prompt, media=media, fallback=fallback)
+    result = ask("intake", INSTRUCTION, prompt, media=media, fallback=fallback,
+                 model=GEMINI_MODEL_FAST)
     reading = result.data if isinstance(result.data, dict) else fallback
     if not reading.get("lines"):
         reading = fallback

@@ -98,17 +98,25 @@ INSTRUCTION = """You write one sentence for a shop owner explaining a credit dec
 that has already been made by the shop's own rules. You do not make or question
 the decision — you phrase it.
 
-Rules: state the real numbers, be specific, no hedging, no greeting, max 25 words.
-Then give a Tamil translation of the same sentence, natural spoken Tamil, with the
-numerals kept as digits.
+Every amount below is given to you already formatted. Copy those strings EXACTLY,
+character for character, including the rupee sign and the comma placement. Never
+rewrite an amount, never drop the sign, never regroup the digits.
+
+The sentence must mention: what is owed, the limit, how many days since the last
+payment, and the action. No hedging, no greeting, max 30 words.
+Then the same sentence in natural spoken Tamil, amounts again copied exactly.
 Return ONLY JSON: {"reason": "...", "reason_ta": "..."}"""
 
+# Amounts arrive pre-formatted for the same reason the model never decides the
+# verdict: money is the shop's, not the model's. It phrases; it does not compute,
+# and it does not reformat. Handing it ₹87,400 rather than 87400 is what keeps
+# Indian grouping and the rupee sign on screen.
 PROMPT = """Party: {name}
-Owes: Rs {outstanding} of Rs {limit} credit limit
+Owes: {outstanding} of a {limit} credit limit
 Days since last payment: {days}
-New order: Rs {order_total}
+New order: {order_total}
 Decision already taken: {decision} (rule {rule})
-Advance to request: Rs {advance}"""
+Advance to request: {advance}"""
 
 _TA_TEMPLATES = {
     "approve": "{name} {limit} வரம்பில் {outstanding} மட்டும் பாக்கி — அனுமதிக்கலாம்.",
@@ -151,10 +159,13 @@ def explain(verdict: Verdict, party: dict) -> Verdict:
     english, tamil = _template(verdict, party)
     result = ask(
         "credit_guardian", INSTRUCTION,
-        PROMPT.format(name=party.get("name"), outstanding=i.get("outstanding"),
-                      limit=i.get("limit"), days=i.get("days_since_payment"),
-                      order_total=i.get("order_total"), decision=verdict.decision,
-                      rule=verdict.rule_fired, advance=verdict.suggested_advance),
+        PROMPT.format(
+            name=party.get("name"), outstanding=inr(i.get("outstanding", 0)),
+            limit=inr(i.get("limit", 0)), days=i.get("days_since_payment"),
+            order_total=inr(i.get("order_total", 0)), decision=verdict.decision,
+            rule=verdict.rule_fired,
+            advance=inr(verdict.suggested_advance) if verdict.suggested_advance
+            else "none"),
         fallback={"reason": english, "reason_ta": tamil},
     )
     data = result.data if isinstance(result.data, dict) else {}

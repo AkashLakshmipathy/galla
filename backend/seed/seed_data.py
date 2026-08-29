@@ -3,7 +3,19 @@ UI, the demo script and the database tell one consistent story.
 
     python -m seed.seed_data
 """
-from datetime import datetime, timezone, date
+from datetime import datetime, timedelta, timezone, date
+
+
+def _days_ago(n: int) -> str:
+    """Seed payment dates relative to today.
+
+    The demo script says Selvam "last paid 34 days ago" and the Credit Guardian
+    recomputes that from the date, so a hard-coded date drifts a day for every
+    day the recording slips — and Ravi eventually crosses OVERDUE by accident.
+    Anchoring to today keeps every verdict, and every line of the script, true
+    on whatever morning the video gets shot.
+    """
+    return (datetime.now(timezone.utc).date() - timedelta(days=n)).isoformat()
 from core.firestore_client import db
 
 SHOP = {
@@ -21,38 +33,38 @@ PARTIES = [
     # Selvam is the demo's amber case: 92% of limit after the new order.
     {"party_id": "selvam", "name": "Selvam", "name_ta": "செல்வம்", "type": "customer",
      "price_tier": "contractor",
-     "credit": {"limit": 95000, "outstanding": 87400, "last_payment_date": "2026-07-25",
-                "last_payment_amount": 20000, "days_since_payment": 34,
+     "credit": {"limit": 95000, "outstanding": 87400, "last_payment_date": _days_ago(34),
+                "last_payment_amount": 20000, "days_since_payment": 34,   # recomputed on read; seeded for completeness
                 "avg_days_to_pay": 41, "dispute_count": 0}},
     {"party_id": "kumar", "name": "Kumar Constructions", "name_ta": "குமார்", "type": "customer",
      "price_tier": "contractor",
-     "credit": {"limit": 150000, "outstanding": 32000, "last_payment_date": "2026-08-20",
+     "credit": {"limit": 150000, "outstanding": 32000, "last_payment_date": _days_ago(8),
                 "last_payment_amount": 45000, "days_since_payment": 8,
                 "avg_days_to_pay": 22, "dispute_count": 0}},
     {"party_id": "ravi", "name": "Ravi Builders", "name_ta": "ரவி", "type": "customer",
      "price_tier": "bulk",
-     "credit": {"limit": 120000, "outstanding": 118500, "last_payment_date": "2026-06-30",
+     "credit": {"limit": 120000, "outstanding": 118500, "last_payment_date": _days_ago(59),
                 "last_payment_amount": 10000, "days_since_payment": 59,
                 "avg_days_to_pay": 64, "dispute_count": 1}},
     # Names that appear on the old khata pages.
     {"party_id": "palani", "name": "Palani", "name_ta": "பழனி", "type": "customer",
      "price_tier": "retail",
-     "credit": {"limit": 40000, "outstanding": 6300, "last_payment_date": "2026-08-12",
+     "credit": {"limit": 40000, "outstanding": 6300, "last_payment_date": _days_ago(16),
                 "last_payment_amount": 5000, "days_since_payment": 16,
                 "avg_days_to_pay": 28, "dispute_count": 0}},
     {"party_id": "kannan", "name": "Kannan", "name_ta": "கண்ணன்", "type": "customer",
      "price_tier": "retail",
-     "credit": {"limit": 60000, "outstanding": 14800, "last_payment_date": "2026-08-05",
+     "credit": {"limit": 60000, "outstanding": 14800, "last_payment_date": _days_ago(23),
                 "last_payment_amount": 12000, "days_since_payment": 23,
                 "avg_days_to_pay": 31, "dispute_count": 0}},
     {"party_id": "raja_mason", "name": "Raja Mason", "name_ta": "ராஜா", "type": "customer",
      "price_tier": "contractor",
-     "credit": {"limit": 50000, "outstanding": 9200, "last_payment_date": "2026-08-18",
+     "credit": {"limit": 50000, "outstanding": 9200, "last_payment_date": _days_ago(10),
                 "last_payment_amount": 8000, "days_since_payment": 10,
                 "avg_days_to_pay": 25, "dispute_count": 0}},
     {"party_id": "murthy", "name": "Murthy Electric", "name_ta": "மூர்த்தி",
      "type": "customer", "price_tier": "retail",
-     "credit": {"limit": 30000, "outstanding": 4600, "last_payment_date": "2026-08-09",
+     "credit": {"limit": 30000, "outstanding": 4600, "last_payment_date": _days_ago(19),
                 "last_payment_amount": 3000, "days_since_payment": 19,
                 "avg_days_to_pay": 34, "dispute_count": 0}},
     {"party_id": "sbh_agencies", "name": "Sri Balaji Hardware Agencies", "type": "supplier",

@@ -18,7 +18,7 @@ from rapidfuzz import fuzz
 
 from core import catalog, confirm_queue, ids, storage
 from core.adk import Media, ask
-from core.config import FIXTURES_DIR
+from core.config import FIXTURES_DIR, GEMINI_MODEL_FAST
 from core.firestore_client import db
 from core.money import gst_split, inr
 
@@ -57,7 +57,8 @@ def _extract(payload: dict) -> tuple[dict, object]:
             media.append(Media(storage.content_type_of(image_uri), blob))
     result = ask("purchase_entry", INSTRUCTION,
                  "Read this supplier invoice and return the JSON.",
-                 media=media, fallback=_fixture())
+                 media=media, fallback=_fixture(),
+                 model=GEMINI_MODEL_FAST)
     data = result.data if isinstance(result.data, dict) and result.data.get("lines") \
         else _fixture()
     return data, result

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from core import confirm_queue, ids, parties, storage
 from core.adk import Media, ask
-from core.config import CONFIDENCE_THRESHOLD, FIXTURES_DIR
+from core.config import CONFIDENCE_THRESHOLD, FIXTURES_DIR, GEMINI_MODEL_FAST
 from core.firestore_client import db
 from core.money import inr
 
@@ -59,7 +59,8 @@ def _extract(payload: dict) -> tuple[dict, object]:
             media.append(Media(storage.content_type_of(image_uri), blob))
     result = ask("khata_digitizer", INSTRUCTION,
                  "Read this khata page and return the JSON.",
-                 media=media, fallback=_fixture())
+                 media=media, fallback=_fixture(),
+                 model=GEMINI_MODEL_FAST)
     data = result.data if isinstance(result.data, dict) and result.data.get("rows") \
         else _fixture()
     return data, result

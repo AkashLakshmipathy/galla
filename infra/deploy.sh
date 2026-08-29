@@ -12,7 +12,8 @@ SVC="galla"
 TOPIC="${PUBSUB_TOPIC:-shop-events}"
 BUCKET="${GCS_BUCKET:-galla-media}"
 SA="galla-agents"
-MODEL="${GEMINI_MODEL:-gemini-flash-latest}"
+MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
+MODEL_FAST="${GEMINI_MODEL_FAST:-gemini-3.5-flash-lite}"
 
 echo "→ project $PROJECT · region $REGION"
 gcloud config set project "$PROJECT" >/dev/null
@@ -46,7 +47,7 @@ gcloud run deploy "$SVC" --source . --region "$REGION" \
   --service-account "$SA_EMAIL" \
   --allow-unauthenticated --min-instances=0 --max-instances=3 \
   --memory=1Gi --cpu=1 --timeout=300 \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=$REGION,GCS_BUCKET=$BUCKET,PUBSUB_TOPIC=$TOPIC,GEMINI_MODEL=$MODEL,GOOGLE_GENAI_USE_VERTEXAI=true,GALLA_STORE=firestore,DEMO_MODE=true"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=$REGION,GCS_BUCKET=$BUCKET,PUBSUB_TOPIC=$TOPIC,GEMINI_MODEL=$MODEL,GEMINI_MODEL_FAST=$MODEL_FAST,GOOGLE_GENAI_USE_VERTEXAI=true,GALLA_STORE=firestore,DEMO_MODE=true"
 
 URL=$(gcloud run services describe "$SVC" --region "$REGION" --format='value(status.url)')
 echo "→ service: $URL"

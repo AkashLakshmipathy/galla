@@ -30,7 +30,8 @@ else
 fi
 
 echo "── the model the agents will actually call"
-MODEL="${GEMINI_MODEL:-gemini-flash-latest}"
+MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
+MODEL_FAST="${GEMINI_MODEL_FAST:-gemini-3.5-flash-lite}"
 # The one unknown worth catching before deploy: an alias that resolves on AI
 # Studio may not resolve on Vertex in this region.
 if gcloud ai models list --region="$REGION" --project="$PROJECT" \
