@@ -407,3 +407,50 @@ def test_merging_teaches_the_survivor_the_old_spellings(seeded):
     assert "Selvan Thudiyalur" in survivor["aliases_merged"]
     # the old spelling now resolves to the surviving account
     assert provisioning.resolve_party("Selvan Thudiyalur").existing_id == "selvam"
+
+
+# ------------------------------------- a failed read must never invent data
+def test_an_unread_khata_page_writes_nothing_in_a_real_shop(monkeypatch, seeded):
+    """The fixture standing in for a failed model call is fine on stage and
+    catastrophic in a shop: invented names and invented debts, indistinguishable
+    from a genuine read."""
+    import agents.khata_digitizer_agent as khata
+    monkeypatch.setattr(khata, "DEMO_MODE", False)
+    from core.trace import Trace
+
+    trace = Trace("khata_page")
+    record = khata.run({"media_path": "gs://x/none.jpg"}, trace)
+
+    assert record["rows"] == []
+    assert record["auto_accepted_count"] == 0
+    step = trace.steps[0]
+    assert step["status"] == "error"
+    assert "again" in step["output_summary"]
+    # ...and committing it posts nothing to anybody's ledger
+    before = len(list(db().collection("ledger").stream()))
+    commit_khata_import(record["import_id"])
+    assert len(list(db().collection("ledger").stream())) == before
+
+
+def test_an_unread_bill_writes_nothing_in_a_real_shop(monkeypatch, seeded):
+    import agents.purchase_entry_agent as purchase
+    monkeypatch.setattr(purchase, "DEMO_MODE", False)
+    from core.trace import Trace
+
+    trace = Trace("purchase_inv")
+    record = purchase.run({"media_path": "gs://x/none.jpg"}, trace)
+
+    assert record["lines"] == []
+    assert trace.steps[0]["status"] == "error"
+    stock_before = db().collection("inventory").document("plm-gi-075").get() \
+        .to_dict()["qty_on_hand"]
+    confirm_purchase(record["purchase_id"])
+    assert db().collection("inventory").document("plm-gi-075").get() \
+        .to_dict()["qty_on_hand"] == stock_before
+
+
+def test_the_demo_still_has_its_fixtures(seeded):
+    """DEMO_MODE is how the hackathon video runs without credentials."""
+    import agents.khata_digitizer_agent as khata
+    assert khata.DEMO_MODE is True
+    assert khata._fixture().get("rows")

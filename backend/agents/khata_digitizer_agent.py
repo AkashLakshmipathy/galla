@@ -18,7 +18,8 @@ from datetime import datetime, timezone
 from core import confirm_queue, ids, parties, provisioning, storage
 from core.catalog import normalise as catalog_normalise
 from core.adk import Media, ask
-from core.config import CONFIDENCE_THRESHOLD, FIXTURES_DIR, GEMINI_MODEL_FAST
+from core.config import (CONFIDENCE_THRESHOLD, DEMO_MODE, FIXTURES_DIR,
+                         GEMINI_MODEL_FAST)
 from core.firestore_client import db
 from core.money import inr
 
@@ -47,8 +48,17 @@ alternative readings; do not guess confidently."""
 
 
 def _fixture() -> dict:
+    """The canned reading, for the demo only.
+
+    A fixture standing in for a failed model call is fine on stage and
+    catastrophic in a shop: it would write invented names and invented debts
+    into a real ledger, indistinguishable from a genuine read. Outside DEMO_MODE
+    there is no stand-in — an unread page says so and waits for a better photo.
+    """
+    if not DEMO_MODE:
+        return {}
     path = FIXTURES_DIR / "khata_page.json"
-    return json.loads(path.read_text("utf-8")) if path.exists() else {"rows": []}
+    return json.loads(path.read_text("utf-8")) if path.exists() else {}
 
 
 def _extract(payload: dict) -> tuple[dict, object]:
@@ -148,6 +158,7 @@ def run(payload: dict, trace) -> dict:
         extraction, result = _extract(payload)
         s.from_llm(result)
         rows = _resolve_rows(extraction.get("rows") or [])
+        unread = not rows
         image_uri = payload.get("media_path") or payload.get("page_image_url")
         import_id = payload.get("import_id") or ids.import_id()
         accepted = sum(1 for row in rows if row["status"] == "auto_accepted")
@@ -170,8 +181,15 @@ def run(payload: dict, trace) -> dict:
         trace.set_ref("khata_import", import_id)
         _queue_uncertain(import_id, rows, image_uri)
 
-        s.status = "flagged" if pending else "done"
-        s.summary = (f"Page {record['page_no']} read — {len(rows)} entries, "
-                     f"{accepted} clear, {pending} to confirm"
-                     + (f", {new_parties} new account(s)" if new_parties else ""))
+        if unread:
+            # Nothing was read. Saying so is the only honest answer; inventing
+            # rows here would put debts on real people that nobody owes.
+            s.status = "error"
+            s.summary = ("Could not read this page — take the photo again in "
+                         "better light, with the page flat")
+        else:
+            s.status = "flagged" if pending else "done"
+            s.summary = (f"Page {record['page_no']} read — {len(rows)} entries, "
+                         f"{accepted} clear, {pending} to confirm"
+                         + (f", {new_parties} new account(s)" if new_parties else ""))
     return record

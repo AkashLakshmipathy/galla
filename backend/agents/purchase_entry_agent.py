@@ -18,7 +18,7 @@ from rapidfuzz import fuzz
 
 from core import catalog, confirm_queue, ids, provisioning, storage
 from core.adk import Media, ask
-from core.config import FIXTURES_DIR, GEMINI_MODEL_FAST
+from core.config import DEMO_MODE, FIXTURES_DIR, GEMINI_MODEL_FAST
 from core.firestore_client import db
 from core.money import gst_split, inr
 
@@ -46,8 +46,17 @@ ambiguous. Being honest about a doubtful digit is more useful than guessing it."
 
 
 def _fixture() -> dict:
+    """The canned reading, for the demo only.
+
+    A fixture standing in for a failed model call is fine on stage and
+    catastrophic in a shop: it would write invented names and invented debts
+    into a real ledger, indistinguishable from a genuine read. Outside DEMO_MODE
+    there is no stand-in — an unread page says so and waits for a better photo.
+    """
+    if not DEMO_MODE:
+        return {}
     path = FIXTURES_DIR / "supplier_invoice.json"
-    return json.loads(path.read_text("utf-8")) if path.exists() else {"lines": []}
+    return json.loads(path.read_text("utf-8")) if path.exists() else {}
 
 
 def _extract(payload: dict) -> tuple[dict, object]:
@@ -178,6 +187,7 @@ def run(payload: dict, trace) -> dict:
         lines = _resolve_lines(extraction.get("lines") or [], purchase_id)
         totals = _totals(lines, {"total": extraction.get("printed_total"),
                                  "taxable": extraction.get("printed_taxable")})
+        unread = not lines
         low = sum(1 for line in lines
                   if confirm_queue.is_uncertain(line["confidence"]))
 
@@ -207,6 +217,11 @@ def run(payload: dict, trace) -> dict:
 
         new_skus = sum(1 for line in lines
                        if line.get("new_sku") and not line.get("near_miss"))
+        if unread:
+            s.status = "error"
+            s.summary = ("Could not read this bill — take the photo again with "
+                         "the whole page in frame")
+            return purchase
         s.status = "flagged" if low else "done"
         s.summary = (f"Invoice {purchase['invoice_no']} read — {len(lines)} lines, "
                      f"{inr(totals['total'])}"
