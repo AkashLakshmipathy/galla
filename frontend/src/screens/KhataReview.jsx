@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { BackBar } from "../components/BackBar.jsx";
 import { Processing } from "../components/Processing.jsx";
 import { TraceRelay } from "../components/TraceRelay.jsx";
-import { Card, ConfidenceChip, FatPill } from "../components/ui.jsx";
+import { Card, ConfidenceChip, FatPill, NewBadge } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { ddmmyyyy, inr } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";
@@ -141,12 +141,18 @@ export function KhataReview({ onToast }) {
                 <div className="flex-1 min-w-0">
                   <div className="text-body font-semibold truncate">
                     {row.party_name_raw}
-                    {!row.party_id && (
-                      <span className="text-meta text-amber-deep font-normal ml-2">
-                        party unknown
-                      </span>
-                    )}
                   </div>
+                  {row.is_new_party && (
+                    <div className="text-micro text-accent mt-0.5">
+                      No account yet — posting opens{" "}
+                      {row.is_company ? "a company" : "a personal"} account
+                    </div>
+                  )}
+                  {row.near_miss && (
+                    <div className="text-micro text-amber-deep mt-0.5">
+                      Might be {row.near_miss.name} — confirm which
+                    </div>
+                  )}
                   <div className="text-meta text-text-2 tnum mt-0.5">
                     {ddmmyyyy(row.date)} ·{" "}
                     {row.entry_type === "payment_received" ? "paid" : "on credit"}
@@ -155,8 +161,12 @@ export function KhataReview({ onToast }) {
                 <div className="text-right shrink-0">
                   <div className="text-body font-semibold tnum">{inr(row.amount)}</div>
                   <div className="mt-1">
-                    <ConfidenceChip value={row.confidence}
-                                    corrected={row.status === "confirmed"} />
+                    {row.is_new_party ? (
+                      <NewBadge>New account</NewBadge>
+                    ) : (
+                      <ConfidenceChip value={row.confidence}
+                                      corrected={row.status === "confirmed"} />
+                    )}
                   </div>
                 </div>
               </div>
@@ -171,6 +181,13 @@ export function KhataReview({ onToast }) {
             <FatPill disabled>Posted to the ledger ✓</FatPill>
           ) : (
             <>
+              {record.new_party_count > 0 && pending.length === 0 && (
+                <p className="text-micro text-accent text-center mb-2">
+                  {record.new_party_count} new{" "}
+                  {record.new_party_count === 1 ? "account" : "accounts"} will be
+                  opened
+                </p>
+              )}
               <FatPill onClick={commit} disabled={busy || pending.length > 0}>
                 {busy ? "Posting…"
                   : pending.length > 0

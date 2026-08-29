@@ -63,9 +63,20 @@ def test_asking_for_an_advance_moves_no_money(seeded):
     assert len(list(seeded.collection("ledger").stream())) == ledger_before
 
 
+def _accept_pending_lines(purchase_id):
+    """Do what the owner does on S3: tap the amber chips to accept the agent's
+    reading. Stock cannot move for a line still in doubt."""
+    from api.actions import Resolution, resolve_queue_item
+    for snap in db().collection("confirm_queue").stream():
+        item = snap.to_dict()
+        if item["source_type"] == "purchase" and item["source_id"] == purchase_id:
+            resolve_queue_item(item["item_id"], Resolution(accept_extracted=True))
+
+
 def test_confirming_a_purchase_increments_stock_once(seeded):
     from agents import router
     purchase = router.handle("purchase_inv", {})
+    _accept_pending_lines(purchase["purchase_id"])
     before = seeded.collection("inventory").document("plm-gi-075").get() \
         .to_dict()["qty_on_hand"]
 
@@ -163,6 +174,7 @@ def test_the_same_sku_twice_on_one_invoice_adds_both_quantities(seeded):
     """
     from agents import router
     purchase = router.handle("purchase_inv", {})
+    _accept_pending_lines(purchase["purchase_id"])
     ref = db().collection("purchases").document(purchase["purchase_id"])
     lines = ref.get().to_dict()["lines"]
     gi = next(dict(line) for line in lines if line["sku_id"] == "plm-gi-075")

@@ -199,12 +199,17 @@ def _resolved_field(item: dict, value, accept_extracted: bool,
     field = item.get("field") or "amount"
     if field == "sku_id":
         if accept_extracted:
-            return ("sku_id", current.get("sku_id"))
+            # "The agent was right." That is either the id it already attached,
+            # or — when it found something close but would not commit to it —
+            # the near miss it was asking about.
+            return ("sku_id", current.get("sku_id")
+                    or (current.get("near_miss") or {}).get("sku_id"))
         found = catalog.match(str(value))
         return ("sku_id", found.sku_id) if found.sku_id else None
     if field == "party_id":
         if accept_extracted:
-            return ("party_id", current.get("party_id"))
+            return ("party_id", current.get("party_id")
+                    or (current.get("near_miss") or {}).get("party_id"))
         party_id, _ = parties.match(str(value))
         return ("party_id", party_id) if party_id else None
     if field in {"amount", "qty", "rate"}:

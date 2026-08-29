@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from core import ids
+from core import ids, provisioning
 from core.firestore_client import db, run_transaction
 
 
@@ -42,6 +42,17 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
         if order.get("status") == "approved":
             return {"order_id": order_id, "already": True,
                     "entry_id": (order.get("owner_action") or {}).get("entry_id")}
+
+        # A SKU created from a supplier bill is received into stock but has no
+        # selling price until a human sets one. Approving an order containing it
+        # would post a ledger entry that understates the sale — money moving on a
+        # number nobody chose. Refuse, and say which line.
+        unpriced = [line.get("name_raw") or line.get("sku_id")
+                    for line in order.get("lines") or []
+                    if line.get("sku_id") and not int(line.get("rate") or 0)]
+        if unpriced:
+            raise ValueError(
+                "cannot approve: no selling price set for " + ", ".join(map(str, unpriced)))
 
         party_ref = db().collection("parties").document(order["party_id"])
         party = party_ref.get(transaction=txn).to_dict() or {}
@@ -105,13 +116,28 @@ def confirm_purchase(purchase_id: str) -> dict:
             return {"purchase_id": purchase_id, "already": True,
                     "stock_delta": purchase.get("stock_delta") or []}
 
+        # A line for a product the shop has never stocked carries a proposed
+        # catalog record. Create it here, not at scan time, so a bill that gets
+        # discarded leaves no phantom products behind.
+        lines = list(purchase.get("lines") or [])
+        created_skus = []
+        for line in lines:
+            if line.get("sku_id") or not line.get("new_sku"):
+                continue
+            if line.get("near_miss"):
+                continue      # too close to something we stock; the owner decides
+            sku_id = provisioning.create_sku(txn, line["new_sku"], purchase_id)
+            line["sku_id"] = sku_id
+            line["matched"] = True
+            created_skus.append(sku_id)
+
         # Total the lines per SKU *before* touching inventory. A supplier
         # routinely splits one SKU across several lines, and a transaction
         # cannot see its own writes — so reading and writing a document once
         # per line would read stale on every line after the first and keep only
         # the last increment.
         wanted: dict[str, int] = {}
-        for line in purchase.get("lines") or []:
+        for line in lines:
             sku_id = line.get("sku_id")
             if sku_id:
                 wanted[sku_id] = wanted.get(sku_id, 0) + int(line.get("qty") or 0)
@@ -152,13 +178,21 @@ def confirm_purchase(purchase_id: str) -> dict:
         })
         txn.update(purchase_ref, {
             "status": "confirmed", "stock_applied": True, "stock_delta": delta,
+            "lines": lines, "created_skus": created_skus,
             "payable_ledger_id": entry_id,
             "confirmed_at": datetime.now(timezone.utc),
         })
         return {"purchase_id": purchase_id, "stock_delta": delta,
+                "created_skus": created_skus,
                 "payable_ledger_id": entry_id, "amount": total}
 
-    return run_transaction(txn_body)
+    result = run_transaction(txn_body)
+    if result.get("created_skus"):
+        # The catalog is cached in-process for read speed; a SKU created a
+        # moment ago has to be visible to the very next line that mentions it.
+        from core import catalog
+        catalog.invalidate()
+    return result
 
 
 def commit_khata_import(import_id: str) -> dict:
@@ -176,6 +210,22 @@ def commit_khata_import(import_id: str) -> dict:
                     "posted": record.get("posted_count", 0)}
 
         rows = list(record.get("rows") or [])
+
+        # Open an account for any confirmed row naming somebody we have never
+        # traded with. Same transaction as the ledger entries, so a discarded
+        # import never leaves an empty profile behind.
+        created_parties = []
+        for row in rows:
+            if row.get("status") not in {"auto_accepted", "confirmed"}:
+                continue
+            if row.get("party_id") or not row.get("new_party"):
+                continue
+            if row.get("near_miss"):
+                continue      # might be an existing contractor; the owner decides
+            party_id = provisioning.create_party(txn, row["new_party"], import_id)
+            row["party_id"] = party_id
+            created_parties.append(party_id)
+
         postable = [r for r in rows
                     if r.get("status") in {"auto_accepted", "confirmed"}
                     and r.get("party_id")]
@@ -185,8 +235,14 @@ def commit_khata_import(import_id: str) -> dict:
             party_id = row["party_id"]
             party_ref = db().collection("parties").document(party_id)
             if party_id not in balances:
-                party = party_ref.get(transaction=txn).to_dict() or {}
-                balances[party_id] = int((party.get("credit") or {}).get("outstanding") or 0)
+                if party_id in created_parties:
+                    # Just created in this transaction, so it cannot be read back
+                    # — Firestore reads never see a transaction's own writes.
+                    balances[party_id] = 0
+                else:
+                    party = party_ref.get(transaction=txn).to_dict() or {}
+                    balances[party_id] = int(
+                        (party.get("credit") or {}).get("outstanding") or 0)
             amount = int(row.get("amount") or 0)
             is_payment = row.get("entry_type") == "payment_received"
             balances[party_id] += -amount if is_payment else amount
@@ -213,8 +269,10 @@ def commit_khata_import(import_id: str) -> dict:
                         "updated_at": datetime.now(timezone.utc)})
         txn.update(import_ref, {"status": "committed", "rows": rows,
                                 "posted_count": posted,
+                                "created_parties": created_parties,
                                 "committed_at": datetime.now(timezone.utc)})
         return {"import_id": import_id, "posted": posted,
+                "created_parties": created_parties,
                 "parties_touched": len(balances)}
 
     return run_transaction(txn_body)

@@ -63,10 +63,18 @@ def purchase_view(purchase: dict | None) -> dict | None:
     view["lines"] = [
         {**line,
          "name": (catalog.by_id(line.get("sku_id"), rows) or {}).get("name")
+         or (line.get("new_sku") or {}).get("name")
          or line.get("description_raw"),
-         "needs_confirm": float(line.get("confidence") or 1) < CONFIDENCE_THRESHOLD}
+         # A brand-new product is not "uncertain" — it is simply new, and the
+         # UI says so rather than nagging for a confirmation there is no
+         # alternative to.
+         "is_new": bool(line.get("new_sku")) and not line.get("near_miss"),
+         "near_miss": line.get("near_miss"),
+         "needs_confirm": float(line.get("confidence") or 1) < CONFIDENCE_THRESHOLD
+         or bool(line.get("near_miss"))}
         for line in purchase.get("lines") or []
     ]
+    view["new_sku_count"] = sum(1 for l in view["lines"] if l["is_new"])
     view["source_image_path"] = storage.http_path(purchase.get("source_image_url"))
     return jsonable(view)
 
@@ -75,6 +83,15 @@ def khata_view(record: dict | None) -> dict | None:
     if not record:
         return None
     view = dict(record)
+    view["rows"] = [
+        {**row,
+         "is_new_party": bool(row.get("new_party")) and not row.get("near_miss"),
+         "proposed_name": (row.get("new_party") or {}).get("name"),
+         "is_company": (row.get("new_party") or {}).get("is_company", False)}
+        for row in record.get("rows") or []
+    ]
+    view["new_party_count"] = len({r["proposed_name"] for r in view["rows"]
+                                   if r["is_new_party"]})
     view["page_image_path"] = storage.http_path(record.get("page_image_url"))
     return jsonable(view)
 

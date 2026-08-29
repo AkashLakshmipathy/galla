@@ -167,6 +167,37 @@ Index: `party_id ASC, date DESC`. **Never update or delete** — corrections are
 ```
 Rows only post to `ledger` when the import is committed — so a bad OCR read never silently changes a balance.
 
+## Provisional records (created from scanned paper)
+
+A shop installing Galla has an empty `catalog` and no `parties`, so the scanning
+agents can *create* both. Two fields are added to those collections:
+
+```
+provisional: true              // built from a scan; the owner has not reviewed it
+created_from: { type: "purchase" | "khata_import", id }
+```
+
+and `catalog` additionally carries:
+
+```
+needs_pricing: true            // price_tiers are all 0 — receivable, not sellable
+```
+
+Rules, in order of how much they matter:
+
+1. **Three bands, not two.** Score ≥ 0.85 uses the existing record; below 0.55
+   creates a new one; *in between, the owner is asked and nothing is created*.
+   Auto-creating in the middle band is how one contractor becomes two ledgers —
+   and two ledgers for one debtor means real exposure is double what either
+   profile shows, the exact failure the Credit Guardian exists to catch.
+2. **Creation happens inside the money transaction**, never at scan time, so a
+   scan the owner discards leaves no phantom products or empty accounts.
+3. **A new SKU is received but not sellable.** Quantity, purchase rate, HSN and
+   GST come off the bill; the selling price is left at 0 because guessing a
+   margin is deciding money. `approve_order` refuses any line with rate 0.
+4. **A new party gets the shop's default credit limit**, never one inferred from
+   the page.
+
 ## Collection: `confirm_queue`
 
 ```

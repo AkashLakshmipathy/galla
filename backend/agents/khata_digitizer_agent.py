@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from core import confirm_queue, ids, parties, storage
+from core import confirm_queue, ids, parties, provisioning, storage
 from core.adk import Media, ask
 from core.config import CONFIDENCE_THRESHOLD, FIXTURES_DIR, GEMINI_MODEL_FAST
 from core.firestore_client import db
@@ -67,27 +67,51 @@ def _extract(payload: dict) -> tuple[dict, object]:
 
 
 def _resolve_rows(raw_rows: list[dict]) -> list[dict]:
+    """Attach a party to every row — or propose opening an account.
+
+    An old khata is full of names the system has never seen, and each one is a
+    person or a firm the shop already trades with. Rather than stalling on them,
+    the agent proposes a profile. The proposal is applied only when the import is
+    committed, in the same transaction that posts the ledger entries.
+
+    A name that is *close* to an existing party is never auto-created: two
+    profiles for one contractor means his real exposure is double what either
+    shows, which is exactly what the Credit Guardian exists to catch.
+    """
     index = parties.index()
     rows: list[dict] = []
     for position, raw in enumerate(raw_rows, start=1):
         read = float(raw.get("confidence") or 0.9)
-        party_id, name_score = parties.match(raw.get("party_name_raw", ""), index)
-        # An unreadable *name* is as disqualifying as an unreadable amount: the
-        # entry cannot post to a ledger without knowing whose ledger it is.
-        confidence = round(read * (name_score if party_id else 0.5), 2)
-        rows.append({
+        name_raw = raw.get("party_name_raw") or ""
+        entry_type = raw.get("entry_type") or "sale_credit"
+        resolution = provisioning.resolve_party(name_raw, entry_type, index)
+
+        row = {
             "row_id": f"r{position}",
-            "party_name_raw": raw.get("party_name_raw"),
-            "party_id": party_id,
+            "party_name_raw": name_raw,
+            "party_id": resolution.existing_id,
             "date": raw.get("date"),
             "amount": float(raw.get("amount") or 0),
-            "entry_type": raw.get("entry_type") or "sale_credit",
-            "confidence": confidence,
+            "entry_type": entry_type,
             "bbox": raw.get("bbox") or {"x": 0, "y": 0, "w": 1, "h": 0},
-            "status": ("auto_accepted" if confidence >= CONFIDENCE_THRESHOLD
-                       else "needs_confirm"),
             "alternatives": raw.get("alternatives") or [],
-        })
+        }
+        if resolution.action == provisioning.USE:
+            row["confidence"] = round(read * resolution.score, 2)
+        elif resolution.creates:
+            # Nobody by this name is on file. Opening an account is the right
+            # answer, so the row is only as uncertain as the handwriting was.
+            row["confidence"] = round(read, 2)
+            row["new_party"] = resolution.proposed
+        else:
+            # Close to someone we know — the owner must say which.
+            row["confidence"] = round(read * resolution.score, 2)
+            row["new_party"] = resolution.proposed
+            row["near_miss"] = resolution.near_miss
+
+        row["status"] = ("auto_accepted" if row["confidence"] >= CONFIDENCE_THRESHOLD
+                         else "needs_confirm")
+        rows.append(row)
     return rows
 
 
@@ -122,6 +146,8 @@ def run(payload: dict, trace) -> dict:
         import_id = payload.get("import_id") or ids.import_id()
         accepted = sum(1 for row in rows if row["status"] == "auto_accepted")
         pending = len(rows) - accepted
+        new_parties = len({r["new_party"]["party_id"] for r in rows
+                           if r.get("new_party") and not r.get("near_miss")})
 
         record = {
             "import_id": import_id,
@@ -140,5 +166,6 @@ def run(payload: dict, trace) -> dict:
 
         s.status = "flagged" if pending else "done"
         s.summary = (f"Page {record['page_no']} read — {len(rows)} entries, "
-                     f"{accepted} clear, {pending} to confirm")
+                     f"{accepted} clear, {pending} to confirm"
+                     + (f", {new_parties} new account(s)" if new_parties else ""))
     return record

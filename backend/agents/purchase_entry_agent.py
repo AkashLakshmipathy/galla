@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from google.cloud.firestore_v1.base_query import FieldFilter
 from rapidfuzz import fuzz
 
-from core import catalog, confirm_queue, ids, storage
+from core import catalog, confirm_queue, ids, provisioning, storage
 from core.adk import Media, ask
 from core.config import FIXTURES_DIR, GEMINI_MODEL_FAST
 from core.firestore_client import db
@@ -83,26 +83,42 @@ def _match_supplier(name_raw: str, gstin: str | None) -> str | None:
     return best if best_score >= 80 else None
 
 
-def _resolve_lines(raw_lines: list[dict]) -> list[dict]:
-    rows = catalog.load()
+def _resolve_lines(raw_lines: list[dict], purchase_id: str) -> list[dict]:
+    """Attach a SKU to every line — or propose creating one.
+
+    A bill routinely lists things the shop has never stocked. Rather than parking
+    those in the confirm queue forever, the agent proposes a catalog entry built
+    from what the bill itself states. The proposal is not written here; it is
+    applied in the same transaction that moves the stock, so a discarded scan
+    leaves no phantom products behind.
+    """
     lines: list[dict] = []
     for raw in raw_lines:
         description = str(raw.get("description_raw") or "").strip()
         read = float(raw.get("confidence") or 0.9)
-        found = catalog.match(description, rows)
         qty = float(raw.get("qty") or 0)
         rate = float(raw.get("rate") or 0)
-        confidence = round(read * found.confidence, 2) if found.matched else round(
-            read * min(found.confidence, 0.4), 2)
-        lines.append({
-            "sku_id": found.sku_id,
+        resolution = provisioning.resolve_sku({**raw, "_purchase_id": purchase_id})
+
+        line = {
+            "sku_id": resolution.existing_id,
             "description_raw": description,
             "qty": qty, "rate": rate,
             "amount": int(round(qty * rate)),
-            "gst_rate": float(raw.get("gst_rate") or found.gst_rate or 18),
-            "confidence": confidence,
-            "matched": found.matched,
-        })
+            "gst_rate": float(raw.get("gst_rate") or 18),
+            "confidence": round(read * max(resolution.score, 0.1), 2),
+            "matched": resolution.action == provisioning.USE,
+        }
+        if resolution.creates:
+            # Nothing ambiguous was found: this really is a new product.
+            line["new_sku"] = resolution.proposed
+            line["confidence"] = round(read, 2)
+        elif resolution.action == provisioning.ASK:
+            # Close to something we already stock — the owner decides, because
+            # guessing here is how one product ends up in the catalog twice.
+            line["new_sku"] = resolution.proposed
+            line["near_miss"] = resolution.near_miss
+        lines.append(line)
     return lines
 
 
@@ -121,6 +137,8 @@ def _queue_uncertain(purchase_id: str, lines: list[dict],
                      image_uri: str | None) -> int:
     queued = 0
     for index, line in enumerate(lines):
+        if line.get("new_sku") and not line.get("near_miss"):
+            continue          # not uncertain — just new. It will be created.
         if not confirm_queue.is_uncertain(line["confidence"]):
             continue
         queued += 1
@@ -138,10 +156,10 @@ def run(payload: dict, trace) -> dict:
     with trace.step("purchase_entry") as s:
         extraction, result = _extract(payload)
         s.from_llm(result)
-        lines = _resolve_lines(extraction.get("lines") or [])
-        totals = _totals(lines)
         image_uri = payload.get("media_path") or payload.get("source_image_url")
         purchase_id = payload.get("purchase_id") or ids.purchase_id()
+        lines = _resolve_lines(extraction.get("lines") or [], purchase_id)
+        totals = _totals(lines)
         low = sum(1 for line in lines
                   if confirm_queue.is_uncertain(line["confidence"]))
 
@@ -164,8 +182,11 @@ def run(payload: dict, trace) -> dict:
         trace.set_ref("purchase", purchase_id)
         _queue_uncertain(purchase_id, lines, image_uri)
 
+        new_skus = sum(1 for line in lines
+                       if line.get("new_sku") and not line.get("near_miss"))
         s.status = "flagged" if low else "done"
         s.summary = (f"Invoice {purchase['invoice_no']} read — {len(lines)} lines, "
                      f"{inr(totals['total'])}"
-                     + (f", {low} line needs confirming" if low else ""))
+                     + (f", {new_skus} new to the catalogue" if new_skus else "")
+                     + (f", {low} needs confirming" if low else ""))
     return purchase

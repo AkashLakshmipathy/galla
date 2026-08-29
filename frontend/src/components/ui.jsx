@@ -87,6 +87,18 @@ export function ConfidenceChip({ value, corrected, edited, onClick }) {
   );
 }
 
+/** Marks something the shop has never had on file — a product not in the
+ *  catalogue, or a person with no account yet. Deliberately not amber: this is
+ *  not a doubt to resolve, it is a fact to notice. */
+export function NewBadge({ children = "New" }) {
+  return (
+    <span className="px-[10px] py-[4px] rounded-full text-chip font-semibold
+                     bg-accent/10 text-accent whitespace-nowrap">
+      {children}
+    </span>
+  );
+}
+
 /** Bottom sheet: scrim, 22px top radius, grab handle, centred title. */
 export function Sheet({ open, onClose, title, children, maxHeight = "86%" }) {
   useEffect(() => {

@@ -4,7 +4,7 @@ import { BackBar } from "../components/BackBar.jsx";
 import { LineEditor } from "../components/LineEditor.jsx";
 import { Processing } from "../components/Processing.jsx";
 import { TraceRelay } from "../components/TraceRelay.jsx";
-import { Card, ConfidenceChip, FatPill } from "../components/ui.jsx";
+import { Card, ConfidenceChip, FatPill, NewBadge } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { ddmmyyyy, inr } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";
@@ -114,12 +114,28 @@ export function InvoiceReview({ onToast }) {
                       as printed: {line.description_raw}
                     </div>
                   )}
+                  {line.is_new && (
+                    <div className="text-micro text-accent mt-1">
+                      Not in your catalogue — saving adds it and stocks{" "}
+                      {Math.round(line.qty)}. You set the selling price later.
+                    </div>
+                  )}
+                  {line.near_miss && (
+                    <div className="text-micro text-amber-deep mt-1">
+                      Might be {line.near_miss.name} — tap the chip to confirm,
+                      or it will be added as a separate item.
+                    </div>
+                  )}
                 </div>
-                <ConfidenceChip
-                  value={line.confidence}
-                  corrected={fixed.includes(index)}
-                  onClick={() => quickFix(index)}
-                />
+                {line.is_new ? (
+                  <NewBadge>New item</NewBadge>
+                ) : (
+                  <ConfidenceChip
+                    value={line.confidence}
+                    corrected={fixed.includes(index)}
+                    onClick={() => quickFix(index)}
+                  />
+                )}
               </div>
             </div>
           ))}
@@ -151,6 +167,13 @@ export function InvoiceReview({ onToast }) {
             </span>
             <span className="font-semibold text-ink">{inr(purchase.totals?.total)}</span>
           </div>
+          {!applied && purchase.new_sku_count > 0 && (
+            <p className="text-micro text-accent text-center mb-2">
+              {purchase.new_sku_count} new{" "}
+              {purchase.new_sku_count === 1 ? "item" : "items"} will be added to
+              your catalogue
+            </p>
+          )}
           <FatPill onClick={save} disabled={busy || applied}>
             {applied ? "Saved to stock ✓" : busy ? "Saving…" : "Save to stock & payables"}
           </FatPill>
