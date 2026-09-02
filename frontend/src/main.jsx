@@ -14,8 +14,21 @@ createRoot(document.getElementById("root")).render(
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      /* an unregistered SW costs offline support, not the app */
+    // The build id in the URL is what makes the browser notice a new worker at
+    // all; without it a phone can sit on a months-old bundle indefinitely.
+    navigator.serviceWorker
+      .register(`/sw.js?v=${import.meta.env.VITE_BUILD_ID ?? "dev"}`)
+      .catch(() => {
+        /* an unregistered worker costs offline support, not the app */
+      });
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      // A newer version has taken over. Reload once so the owner is not left
+      // looking at yesterday's screens wondering why a fix did not arrive.
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
     });
   });
 }
