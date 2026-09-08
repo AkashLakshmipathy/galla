@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from core import documents, storage
-from core.adk import ask
+from core.llm import ask
 from core.config import SHOP_ID
 from core.firestore_client import db
 from core.money import gst_split, inr

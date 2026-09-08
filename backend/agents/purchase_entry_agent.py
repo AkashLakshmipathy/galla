@@ -17,9 +17,9 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from rapidfuzz import fuzz
 
 from core import catalog, confirm_queue, ids, provisioning, storage
-from core.adk import Media, ask
-from core.config import DEMO_MODE, FIXTURES_DIR, GEMINI_MODEL_FAST
+from core.config import DEMO_MODE, FIXTURES_DIR
 from core.firestore_client import db
+from core.llm import Media, ask
 from core.money import gst_split, inr
 
 INSTRUCTION = """You read printed GST purchase invoices from Indian building-material
@@ -93,7 +93,7 @@ def _extract(payload: dict) -> tuple[dict, object]:
     result = ask("purchase_entry", INSTRUCTION,
                  "Read this supplier invoice and return the JSON.",
                  media=media, fallback=_fixture(),
-                 model=GEMINI_MODEL_FAST)
+                 fast=True)
     data = result.data if isinstance(result.data, dict) and result.data.get("lines") \
         else _fixture()
     return data, result

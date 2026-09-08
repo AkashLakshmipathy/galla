@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Response
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from agents.router import fleet
 from core import books, catalog, merge, serialize, storage
-from core.adk import fleet
 from core.config import CONFIDENCE_THRESHOLD, SHOP_ID
 from core.firestore_client import db
 from agents.credit_guardian_agent import days_since

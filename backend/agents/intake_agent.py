@@ -4,7 +4,7 @@ Reads a Tamil/Tanglish voice note, a photo of a handwritten material list, or
 typed text, and turns it into an order draft with one line per item.
 
 Division of labour, deliberately:
-  * Gemini (via ADK) does *perception* — transcribe, read handwriting, split the
+  * The model does *perception* — transcribe, read handwriting, split the
     utterance into item fragments with a quantity and unit each.
   * `core.catalog` does *resolution* — trade slang to SKU, fuzzy, in-process,
     over a cached catalog. Keeping SKU choice out of the model means a wrong
@@ -21,9 +21,9 @@ import re
 from datetime import datetime, timezone
 
 from core import catalog, confirm_queue, ids, storage
-from core.adk import Media, ask
-from core.config import GEMINI_MODEL_FAST, SHOP_ID
+from core.config import SHOP_ID
 from core.firestore_client import db
+from core.llm import Media, ask
 
 INSTRUCTION = """You are the intake agent for an Indian hardware shop in Coimbatore.
 You receive a customer's order as Tamil/Tanglish speech, a photo of a handwritten
@@ -110,7 +110,7 @@ def _perceive(payload: dict) -> tuple[dict, object]:
     prompt = ("Read the attached order and return the JSON."
               if media else f"Order as text:\n{text}\n\nReturn the JSON.")
     result = ask("intake", INSTRUCTION, prompt, media=media, fallback=fallback,
-                 model=GEMINI_MODEL_FAST)
+                 fast=True)
     reading = result.data if isinstance(result.data, dict) else fallback
     if not reading.get("lines"):
         reading = fallback

@@ -8,7 +8,7 @@
 
 Galla replaces the two employees a small Indian shop can't afford: the data-entry person and the computer operator. It is a mobile-only web app (PWA) where a hardware-shop owner runs his entire back office — orders, purchases, credit ledger, GST — by doing only what he already does naturally: **speaking, photographing, and tapping**.
 
-Behind the screen, a fleet of AI agents (Google ADK + Gemini multimodal on Google Cloud) does the heavy lifting asynchronously: parsing Tamil voice notes, reading handwritten material lists, extracting supplier invoices, digitizing decades-old paper ledgers, guarding contractor credit, and compiling monthly GST summaries while the shop sleeps.
+Behind the screen, a fleet of AI agents (Strands Agents SDK on Google Cloud, multimodal) does the heavy lifting asynchronously: parsing Tamil voice notes, reading handwritten material lists, extracting supplier invoices, digitizing decades-old paper ledgers, guarding contractor credit, and compiling monthly GST summaries while the shop sleeps.
 
 **One-line pitch:** *Tally needs a computer and an operator. Galla needs only a phone camera and a thumb.*
 

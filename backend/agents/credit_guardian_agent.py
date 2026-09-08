@@ -2,7 +2,7 @@
 
 ARCHITECTURAL DECISION (keep this, and say it in the demo):
 The *decision* is deterministic, computed from rules over real ledger numbers.
-Gemini is used only to phrase the reasoning in plain Tamil/English.
+The model is used only to phrase the reasoning in plain Tamil/English.
 
 Why: money decisions must be auditable and reproducible. `rule_fired` is stored
 on every verdict so any decision can be explained after the fact. An LLM that
@@ -25,8 +25,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 
-from core.adk import ask
 from core.firestore_client import db
+from core.llm import ask
 from core.money import inr
 
 NEAR_LIMIT_PCT = 0.85          # exposure at or above this is "near the line"
@@ -153,8 +153,8 @@ def _template(verdict: Verdict, party: dict) -> tuple[str, str]:
 
 
 def explain(verdict: Verdict, party: dict) -> Verdict:
-    """Gemini phrases the reasoning. Falls back to a bilingual template if the
-    call fails — the demo must never show an empty verdict banner."""
+    """The model phrases the reasoning. Falls back to a bilingual template if
+    the call fails — the demo must never show an empty verdict banner."""
     i = verdict.inputs or {}
     english, tamil = _template(verdict, party)
     result = ask(

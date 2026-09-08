@@ -129,3 +129,31 @@ def handle(event_type: str, payload: dict) -> dict:
         log.exception("agent chain failed for %s", event_type)
         trace.finish("failed", error=str(exc))
         raise
+
+
+def fleet() -> list[dict]:
+    """The declared agent fleet, for the README/architecture diagram and the
+    `/api/fleet` endpoint the UI uses to label the trace strip.
+
+    Lives beside CHAINS because they describe the same thing from two angles:
+    who the agents are, and the order they run in."""
+    return [
+        {"agent": "intake", "label": "Intake",
+         "does": "Tamil voice / handwriting → line items + SKU match"},
+        {"agent": "stock_pricing", "label": "Stock & Pricing",
+         "does": "inventory check, tier pricing, substitute suggestion"},
+        {"agent": "credit_guardian", "label": "Credit Guardian",
+         "does": "deterministic credit verdict, the model phrases it"},
+        {"agent": "quotation", "label": "Quotation",
+         "does": "GST quotation PDF with HSN + CGST/SGST split"},
+        {"agent": "billing", "label": "Billing",
+         "does": "invoice number, tax invoice PDF, share link — no model call"},
+        {"agent": "purchase_entry", "label": "Purchase Entry",
+         "does": "supplier invoice OCR → stock delta + payable"},
+        {"agent": "khata_digitizer", "label": "Khata Digitizer",
+         "does": "handwritten ledger page → rows with source bboxes"},
+        {"agent": "gst_compiler", "label": "GST Compiler",
+         "does": "monthly CA-ready summary, fired by Cloud Scheduler"},
+        {"agent": "notifier", "label": "Notifier",
+         "does": "approval cards, digests, CA dispatch"},
+    ]

@@ -17,7 +17,7 @@
   .tag { display: inline-block; font-size: 9.5px; font-weight: 600; letter-spacing: .05em;
          text-transform: uppercase; padding: 2.5px 7px; border-radius: 999px; margin-bottom: 6px; }
   .gcp { background: #E8F0FE; color: #0A6BE0; }
-  .adk { background: #FBF2E0; color: #9C6408; }
+  .orch { background: #FBF2E0; color: #9C6408; }
   .rule { background: #EAF6EE; color: #28934E; }
   .fleet { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
   .agent { background: #FFFFFF; border-radius: 12px; padding: 11px; }
@@ -38,7 +38,7 @@
 </style></head><body>
 
 <h1>Galla — agentic back office for a Coimbatore hardware shop</h1>
-<div class="sub">Google ADK agent fleet on Cloud Run · Gemini multimodal via Vertex AI · every money write in a Firestore transaction</div>
+<div class="sub">Strands Agents fleet on Cloud Run · multimodal extraction · every money write in a Firestore transaction</div>
 
 <div class="grid">
   <div class="lane">
@@ -66,7 +66,7 @@
       <b>0 6 1 * *</b> IST
     </div>
     <div class="box" style="padding-bottom:13px">
-      <span class="tag adk">Google ADK · LlmAgent on Gemini Flash</span>
+      <span class="tag orch">Strands Agents SDK · agents-as-tools</span>
       <div class="fleet">
         <div class="agent"><b>Intake</b><span>Speech &amp; handwriting → line items</span></div>
         <div class="agent"><b>Stock &amp; Pricing</b><span>Tier rates, substitutes. No model.</span></div>
@@ -99,7 +99,7 @@
       against a Pub/Sub redelivery doubling stock.</span>
     </div>
     <div class="box">
-      <span class="tag adk">Product &amp; audit, one collection</span>
+      <span class="tag orch">Product &amp; audit, one collection</span>
       <b>agent_traces</b>
       <span>Every step: agent, status, duration, model, tokens, one-line output.
       Drives the on-screen trace strip and the audit log.</span>

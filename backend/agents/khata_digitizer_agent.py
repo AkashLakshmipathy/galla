@@ -17,10 +17,9 @@ from datetime import datetime, timezone
 
 from core import confirm_queue, ids, parties, provisioning, storage
 from core.catalog import normalise as catalog_normalise
-from core.adk import Media, ask
-from core.config import (CONFIDENCE_THRESHOLD, DEMO_MODE, FIXTURES_DIR,
-                         GEMINI_MODEL_FAST)
+from core.config import CONFIDENCE_THRESHOLD, DEMO_MODE, FIXTURES_DIR
 from core.firestore_client import db
+from core.llm import Media, ask
 from core.money import inr
 
 INSTRUCTION = """You read one page from an Indian hardware shop's handwritten
@@ -130,7 +129,7 @@ def _extract(payload: dict) -> tuple[dict, object]:
     result = ask("khata_digitizer", INSTRUCTION,
                  "Read this khata page and return the JSON.",
                  media=media, fallback=_fixture(),
-                 model=GEMINI_MODEL_FAST)
+                 fast=True)
     data = result.data if isinstance(result.data, dict) and result.data.get("rows") \
         else _fixture()
 
@@ -146,7 +145,7 @@ def _extract(payload: dict) -> tuple[dict, object]:
                         bought=check["bought"], paid=check["paid"],
                         expected=check["expected_closing"],
                         difference=abs(check["difference"])),
-                    media=media, fallback=None, model=GEMINI_MODEL_FAST)
+                    media=media, fallback=None, fast=True)
         if isinstance(retry.data, dict) and retry.data.get("rows"):
             second = arithmetic_check(retry.data,
                                       _amounts_only(retry.data.get("rows") or []))

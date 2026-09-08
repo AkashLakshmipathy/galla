@@ -6,7 +6,7 @@
 **Tally needs a computer and an operator. Galla needs a phone camera and a thumb.**
 
 A mobile-only PWA where a hardware-shop owner runs his entire back office by speaking,
-photographing and tapping. Behind it, a fleet of Google ADK agents on Cloud Run does the
+photographing and tapping. Behind it, a fleet of Strands agents on Cloud Run does the
 work asynchronously: parsing Tamil voice notes, reading handwritten material lists,
 extracting supplier invoices, digitizing paper ledgers, **deciding on contractor credit**,
 and compiling monthly GST summaries unattended.
@@ -131,8 +131,8 @@ only be *partly* proven without a Google Cloud project, so here is the honest sp
 
 | Integration | State |
 |---|---|
-| Google ADK — `LlmAgent`, `Runner`, `InMemorySessionService`, multimodal `Content` | **Constructs and dispatches.** Driven to the live Gemini endpoint, which rejected only the API key — the request shape is accepted. The model's *response* has never been parsed against a real reply. |
-| Gemini via Vertex AI | **Working in production.** Intake on `gemini-3.5-flash-lite`, Credit Guardian on `gemini-3.5-flash`, real token counts in `agent_traces`. |
+| Strands Agents SDK — `Agent`, `@tool`, multimodal content blocks | **Working.** A Strands agent answers through `core/model.py` and calls its tools; verified end to end against a live endpoint with token counts recorded on the trace. |
+| Model provider — Bedrock or Gemini | **Both wired, one env var apart** (`GALLA_MODEL_PROVIDER`). Extraction runs on the cheap tier, the Credit Guardian's sentence on the standard one; real token counts land in `agent_traces`. |
 | Firestore | **Working in production**, `asia-south1`. Also contract-tested against the real client offline (`tests/test_firestore_contract.py`). |
 | Firestore transactions | Real semantics: `core/localstore.py` deliberately does **not** offer read-your-writes, because Firestore does not. That faithfulness caught a lost-stock bug on duplicated invoice lines. |
 | Cloud Run · Pub/Sub · Cloud Scheduler · Cloud Storage | **Working in production.** Event in → push subscription → agent chain → verdict; Scheduler produced a GST register unattended; quotation PDF written to `gs://galla-media`. |
@@ -182,7 +182,8 @@ backend/
   main.py            /ingest · /pubsub/push · /jobs/gst-compile · serves the PWA
   agents/            one file per agent + router.py (chains them by event type)
   api/               reads.py · actions.py · demo.py
-  core/              adk (the ADK bridge) · trace · transactions · catalog · stock
+  core/              llm (the one model seam) · model (provider switch) · trace
+                     transactions · catalog · stock · tax
                      money · serialize · storage · localstore · config
   seed/              seed_data.py + fixtures/ (the demo's known-good perceptions)
   tests/             55 tests: credit rules, money, transactions, intake, full chain,
@@ -211,8 +212,8 @@ Galla produces a **CA-ready summary**. It does not file your GST.
 
 ## Submission checklist
 
-- [x] Google ADK agent fleet written; ADK construction and dispatch verified against the live endpoint
-- [x] Gemini calls succeeding against pinned Gemini 3.5+ models, with token counts in `agent_traces`
+- [x] Strands Agents SDK throughout; a live agent call verified end to end with tools
+- [x] Model provider swappable by one env var (Bedrock / Gemini), each with a deterministic fallback
 - [x] All three credit verdict states reachable from seeded data (`kumar` green · `selvam` amber · `ravi` red)
 - [x] Invoice and khata extraction with confidence gating and tap-to-trace
 - [x] `agent_traces` documents readable in the Firestore console

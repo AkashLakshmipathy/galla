@@ -97,7 +97,7 @@ class _Step:
         self.tokens_out = 0
 
     def from_llm(self, result) -> None:
-        """Copy model provenance off an `core.adk.LlmResult` in one line."""
+        """Copy model provenance off a `core.llm.LlmResult` in one line."""
         self.model = result.model if result.ok else f"{result.model} (fallback)"
         self.tokens_in, self.tokens_out = result.tokens_in, result.tokens_out
 

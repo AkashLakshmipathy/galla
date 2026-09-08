@@ -29,8 +29,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from core import catalog, parties
-from core.adk import ask
-from core.config import GEMINI_MODEL_FAST, SHOP_ID
+from core.llm import ask
+from core.config import SHOP_ID
 from core.firestore_client import db
 
 CERTAIN = 0.85          # same as the shop's confidence threshold
@@ -186,7 +186,7 @@ def _model_decides(description: str, candidates: list[dict]) -> tuple[str | None
     result = ask("purchase_entry", SAME_PRODUCT_INSTRUCTION,
                  f"Invoice line: {description}\n\nAlready in stock:\n{listing}",
                  fallback={"sku_id": None, "confidence": 0.0},
-                 model=GEMINI_MODEL_FAST)
+                 fast=True)
     data = result.data if isinstance(result.data, dict) else {}
     sku_id = data.get("sku_id")
     known = {c["sku_id"] for c in candidates}
@@ -320,7 +320,7 @@ def _model_decides_party(name_raw: str, candidates: list[dict]
     result = ask("khata_digitizer", SAME_PERSON_INSTRUCTION,
                  f"Name on the page: {name_raw}\n\nAccounts already open:\n{listing}",
                  fallback={"party_id": None, "confidence": 0.0},
-                 model=GEMINI_MODEL_FAST)
+                 fast=True)
     data = result.data if isinstance(result.data, dict) else {}
     party_id = data.get("party_id")
     if party_id not in {c["party_id"] for c in candidates}:
