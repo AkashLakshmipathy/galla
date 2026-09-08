@@ -20,7 +20,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
 
-from core.money import ddmmyyyy, inr, pdf_text
+from core.money import ddmmyyyy, inr, inr_paise, pdf_text, rupees_in_words
 
 INK = colors.HexColor("#111113")
 TEXT2 = colors.HexColor("#77777C")
@@ -39,6 +39,11 @@ SMALL = ParagraphStyle("s", fontName="Helvetica", fontSize=7.5, textColor=TEXT2,
 def rupees(amount) -> str:
     """Reportlab's core fonts have no rupee glyph, so documents say Rs."""
     return pdf_text(inr(amount))
+
+
+def rupees_exact(amount) -> str:
+    """Paise-exact, for the tax invoice where the columns have to add up."""
+    return pdf_text(inr_paise(amount))
 
 
 def letterhead(shop: dict, subtitle: str = "") -> list:
@@ -136,3 +141,108 @@ def gst_summary_pdf(period: str, shop: dict, outward: dict, inward: dict,
         Paragraph(f"Compiled {ddmmyyyy(datetime.now(timezone.utc))}.", META),
     ]
     return render(flow, f"GST summary {period}", shop.get("name", "Galla"))
+
+
+# ------------------------------------------------------------- the tax invoice
+# Only the states this shop actually trades with need naming; anything else
+# prints as its bare code, which is still a valid place of supply on an invoice.
+STATE_NAMES = {
+    "27": "Maharashtra", "29": "Karnataka", "32": "Kerala", "33": "Tamil Nadu",
+    "36": "Telangana", "37": "Andhra Pradesh", "24": "Gujarat", "06": "Haryana",
+    "07": "Delhi", "09": "Uttar Pradesh", "19": "West Bengal",
+}
+
+# Both sets must total the 170mm text frame (A4 less 16mm margins). Anything
+# wider does not wrap — reportlab spills the cell over its neighbour, which on a
+# discounted line ran "Rs 445.00" straight into the rate beside it.
+#            #     item   hsn    qty    rate   disc   taxable gst    cgst   sgst
+INTRA_COLUMNS = [6 * mm, 32 * mm, 12 * mm, 14 * mm, 19 * mm, 17 * mm,
+                 20 * mm, 10 * mm, 20 * mm, 20 * mm]
+#            #     item   hsn    qty    rate   disc   taxable gst    igst
+INTER_COLUMNS = [6 * mm, 40 * mm, 13 * mm, 15 * mm, 20 * mm, 18 * mm,
+                 22 * mm, 12 * mm, 24 * mm]
+
+assert abs(sum(INTRA_COLUMNS) - 170 * mm) < 0.5, "intra columns overflow the page"
+assert abs(sum(INTER_COLUMNS) - 170 * mm) < 0.5, "inter columns overflow the page"
+
+
+def place_of_supply(state_code: str | None) -> str:
+    code = str(state_code or "").strip() or "33"
+    name = STATE_NAMES.get(code)
+    return f"{code} — {name}" if name else code
+
+
+def _invoice_rows(invoice, intra_state: bool) -> list[list]:
+    """One row per line. The columns the spec names, in the order it names them."""
+    tax_headers = ["CGST", "SGST"] if intra_state else ["IGST"]
+    rows = [["#", "Item", "HSN", "Qty", "Rate", "Disc.", "Taxable", "GST"]
+            + tax_headers]
+    for index, line in enumerate(invoice.lines, start=1):
+        quantity = f"{line.qty.normalize():f}".rstrip(".")
+        tax_cells = ([rupees_exact(line.cgst), rupees_exact(line.sgst)]
+                     if intra_state else [rupees_exact(line.igst)])
+        rows.append([
+            str(index),
+            Paragraph(line.description or "Item", BODY),
+            line.hsn_code or "",
+            f"{quantity} {line.unit}".strip(),
+            rupees_exact(line.unit_price),
+            rupees_exact(line.discount) if line.discount else "—",
+            rupees_exact(line.taxable),
+            f"{line.rate.normalize():f}%".replace(".0%", "%"),
+        ] + tax_cells)
+    return rows
+
+
+def tax_invoice_pdf(invoice, shop: dict, party: dict, number: str,
+                    issued: datetime | None = None,
+                    title: str = "Tax Invoice") -> bytes:
+    """The document the customer keeps and the CA reconciles against.
+
+    `invoice` is a `core.tax.TaxInvoice` — every figure on the page is read off
+    it rather than recomputed here, because arithmetic that happens twice is
+    arithmetic that can disagree with itself.
+
+    `title` carries the three variants a shop actually prints: a Tax Invoice, a
+    Quotation, or a Duplicate of an invoice already issued.
+    """
+    issued = issued or datetime.now(timezone.utc)
+    intra_state = invoice.intra_state
+    supply_state = (party.get("state_code")
+                    or (party.get("gstin") or "")[:2]
+                    or shop.get("state_code", "33"))
+
+    header = Table([[
+        Paragraph(f"<b>{title.upper()} {number}</b>"
+                  f"<br/>Date {ddmmyyyy(issued)}"
+                  f"<br/>Place of supply {place_of_supply(supply_state)}", BODY),
+        Paragraph(f"<b>{party.get('name', 'Walk-in customer')}</b><br/>"
+                  + (f"{party['address']}<br/>" if party.get("address") else "")
+                  + (f"GSTIN {party['gstin']}" if party.get("gstin")
+                     else "Unregistered")
+                  + (f"<br/>{party['phone']}" if party.get("phone") else ""), BODY),
+    ]], colWidths=[85 * mm, 85 * mm], style=TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    summary = [["Taxable value", rupees_exact(invoice.subtotal_taxable)]]
+    if invoice.total_discount:
+        summary.insert(0, ["Discount", "- " + rupees_exact(invoice.total_discount)])
+    summary += ([["CGST", rupees_exact(invoice.total_cgst)],
+                 ["SGST", rupees_exact(invoice.total_sgst)]] if intra_state
+                else [["IGST", rupees_exact(invoice.total_igst)]])
+    if invoice.round_off:
+        summary.append(["Round off", rupees_exact(invoice.round_off)])
+    summary.append(["Payable", rupees(invoice.payable)])
+
+    flow = letterhead(shop) + [
+        gap(8), header, gap(6),
+        line_table(_invoice_rows(invoice, intra_state),
+                   INTRA_COLUMNS if intra_state else INTER_COLUMNS),
+        gap(5), totals_table(summary), gap(4),
+        Paragraph(f"<b>{pdf_text(rupees_in_words(invoice.payable))}</b>", BODY),
+        gap(6),
+        Paragraph("Electronically generated tax invoice. Goods once sold are "
+                  "subject to the shop's usual terms.", SMALL),
+    ]
+    return render(flow, f"{title} {number}", shop.get("name", "Galla"))

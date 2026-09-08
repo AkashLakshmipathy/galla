@@ -34,13 +34,19 @@ def test_the_chain_writes_a_readable_trace(seeded):
 
     assert trace["status"] == "awaiting_owner"
     assert [step["agent"] for step in trace["steps"]] == [
-        "intake", "stock_pricing", "credit_guardian", "quotation", "notifier"]
+        "intake", "stock_pricing", "credit_guardian", "quotation", "billing",
+        "notifier"]
     assert all(step["output_summary"] for step in trace["steps"]), \
         "every step must say what it did, in one line"
-    # The quotation is parked, not generated, because the owner has not decided.
-    quotation = next(s for s in trace["steps"] if s["agent"] == "quotation")
-    assert quotation["status"] == "waiting"
+
+    # Two steps are parked rather than run, and for different reasons: the
+    # quotation because the owner has not decided, the invoice because a tax
+    # invoice is only issued once the goods are actually sold.
+    parked = {s["agent"]: s for s in trace["steps"] if s["status"] == "waiting"}
+    assert set(parked) == {"quotation", "billing"}
     assert order["quotation_url"] is None
+    assert order.get("invoice_no") is None, \
+        "an invoice number burned before approval would leave a gap in the series"
 
 
 def test_out_of_stock_line_offers_the_catalogue_substitute(seeded):
@@ -109,7 +115,11 @@ def test_gst_compiler_reports_a_ca_ready_summary(seeded):
     period = str(order["created_at"])[:7]
     register = router.handle("gst_compile", {"period": period})
 
-    assert register["outward"]["b2c"]["invoice_count"] == 1
+    # Selvam is GST-registered, so his order is outward B2B. The split is the
+    # point of the register: a CA files the two halves differently.
+    assert register["outward"]["b2b"]["invoice_count"] == 1
+    assert register["outward"]["b2b"]["taxable"] > 0
+    assert register["outward"]["b2c"]["invoice_count"] == 0
     assert register["inward"]["invoice_count"] == 1
     assert register["summary_pdf_url"].endswith(".pdf")
     assert register["registers_csv_url"].endswith(".csv")

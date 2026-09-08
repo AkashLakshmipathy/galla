@@ -27,11 +27,19 @@ def _ledger_ref(entry_id: str):
     return db().collection("ledger").document(entry_id)
 
 
-def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
+def approve_order(order_id: str, note: str = "", by: str = "owner",
+                  paid: bool = False) -> dict:
     """Ledger entry + party balance + order status, atomically.
 
     Debit on a sale means "the customer owes us more", which is why the party's
     outstanding goes up by the full GST-inclusive total.
+
+    `paid` is the counter sale: the customer hands over the money as he takes
+    the goods. That is still a sale and still belongs in the outward register,
+    so it is booked as two entries in this one transaction — the sale debit and
+    the receipt credit — and the party's balance ends where it started. Netting
+    it to a single zero-rupee entry instead would lose the sale from the books,
+    and rewriting the debit afterwards would break the append-only rule.
     """
     order_ref = db().collection("orders").document(order_id)
 
@@ -101,6 +109,7 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
             })
             stock_delta.append({"sku_id": sku_id, "before": before, "after": after})
 
+        now = datetime.now(timezone.utc)
         entry_id = ids.entry_id()
         txn.set(_ledger_ref(entry_id), {
             "entry_id": entry_id, "party_id": order["party_id"], "date": _today(),
@@ -108,19 +117,38 @@ def approve_order(order_id: str, note: str = "", by: str = "owner") -> dict:
             "balance_after": balance_after,
             "ref": {"type": "order", "id": order_id},
             "source": "owner", "note": note or f"Order {order_id} approved",
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now,
         })
-        txn.update(party_ref, {"credit.outstanding": balance_after,
-                               "updated_at": datetime.now(timezone.utc)})
+
+        receipt_id = None
+        if paid:
+            receipt_id = ids.entry_id()
+            balance_after = int(credit.get("outstanding") or 0)
+            txn.set(_ledger_ref(receipt_id), {
+                "entry_id": receipt_id, "party_id": order["party_id"],
+                "date": _today(), "type": "payment", "amount": total,
+                "direction": "credit", "balance_after": balance_after,
+                "ref": {"type": "order", "id": order_id},
+                "source": "owner", "note": f"Counter sale {order_id} paid",
+                "created_at": now,
+            })
+
+        party_update = {"credit.outstanding": balance_after, "updated_at": now}
+        if paid:
+            party_update["credit.last_payment_date"] = _today()
+            party_update["credit.last_payment_amount"] = total
+        txn.update(party_ref, party_update)
         txn.update(order_ref, {
             "status": "approved",
+            "paid": bool(paid),
             "stock_delta": stock_delta,
-            "owner_action": {"action": "approve", "at": datetime.now(timezone.utc),
+            "owner_action": {"action": "approve", "at": now,
                              "note": note, "by": by, "entry_id": entry_id},
         })
         return {"order_id": order_id, "entry_id": entry_id,
+                "receipt_entry_id": receipt_id,
                 "balance_after": balance_after, "amount": total,
-                "stock_delta": stock_delta}
+                "paid": bool(paid), "stock_delta": stock_delta}
 
     return run_transaction(txn_body)
 

@@ -252,3 +252,83 @@ def by_id(sku_id: str, catalog: list[dict] | None = None) -> dict | None:
         if row.get("sku_id") == sku_id:
             return row
     return None
+
+
+def _raw_haystack(row: dict) -> list[str]:
+    """Names and aliases as written, before normalisation strips anything."""
+    values = [row.get("name", ""), row.get("name_ta", "") or ""]
+    values += list(row.get("aliases") or [])
+    return [v.lower() for v in values if v]
+
+
+def _literal_search(query: str, rows: list[dict], limit: int) -> list[dict]:
+    """An empty box matches nothing — `"" in text` would otherwise be True for
+    every row and hand the counter screen the whole catalogue."""
+    needle = (query or "").strip().lower()
+    if not needle:
+        return []
+    hits = [row for row in rows
+            if any(needle in text for text in _raw_haystack(row))]
+    return [_search_row(row) for row in hits[:limit]]
+
+
+def _search_row(row: dict) -> dict:
+    return {
+        "sku_id": row.get("sku_id"),
+        "name": row.get("name", ""),
+        "name_ta": row.get("name_ta", ""),
+        "unit": row.get("unit", ""),
+        "hsn_code": row.get("hsn_code", ""),
+        "gst_rate": row.get("gst_rate", 0),
+        "price_tiers": row.get("price_tiers") or {},
+        "aliases": list(row.get("aliases") or [])[:6],
+    }
+
+
+def search(query: str, limit: int = 8,
+           catalog: list[dict] | None = None) -> list[dict]:
+    """Search-as-you-type for the counter screen.
+
+    Deliberately *not* `match()`. That function resolves a whole spoken or
+    written line and docks confidence when two SKUs are close, which is right
+    when nobody is watching and wrong here — at the counter a human is reading
+    the list and picking, so ambiguity should widen the list, not narrow it.
+
+    Ranking is what a shopkeeper expects from a search box: something that
+    starts with what he typed comes before something that merely contains it,
+    which comes before a fuzzy near-miss. Typing "ramco" finds the cement;
+    typing "3/4" finds every three-quarter-inch line he stocks.
+
+    This is why there is no barcode scanner in this product. Cement, pipe and
+    loose hardware carry no barcodes, so the alias list *is* the input method.
+    """
+    rows = catalog if catalog is not None else load()
+    needle = normalise(query)
+    if not needle:
+        # `normalise` drops bare numbers, because in a spoken line a number is a
+        # quantity. In a search box it is usually part of the name — "53" means
+        # 53-grade cement, "3/4" means the three-quarter pipe — so fall back to
+        # a plain substring pass over the untouched text.
+        return _literal_search(query, rows, limit)
+
+    scored: list[tuple[float, dict]] = []
+    for row in rows:
+        candidates = _haystack(row)
+        if not candidates:
+            continue
+        if any(c.startswith(needle) for c in candidates):
+            rank = 3.0
+        elif any(needle in c for c in candidates):
+            rank = 2.0
+        else:
+            best = process.extractOne(needle, candidates,
+                                      scorer=fuzz.token_set_ratio)
+            score = (best[1] if best else 0) / 100.0
+            if score < 0.60:
+                continue
+            rank = score
+        # Longer names are less likely to be what a three-letter query meant.
+        scored.append((rank - len(row.get("name", "")) / 1000.0, row))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [_search_row(row) for _, row in scored[:limit]]

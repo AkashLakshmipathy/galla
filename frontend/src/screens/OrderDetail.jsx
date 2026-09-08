@@ -8,6 +8,7 @@ import { TraceRelay } from "../components/TraceRelay.jsx";
 import { VerdictBlock } from "../components/Verdict.jsx";
 import { Card, ConfidenceChip, FatPill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { shareDocument } from "../lib/share.js";
 import { inr } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";
 
@@ -122,7 +123,11 @@ export function OrderDetail({ onToast }) {
       <div className="px-gutter space-y-3.5 pb-40">
         {!verdict && (
           <Card className="p-cardpad">
-            <TraceRelay trace={trace} chain={fleet?.chains?.sale_order ?? []} />
+            <TraceRelay
+              trace={trace}
+              chain={fleet?.chains?.[
+                order.source === "counter" ? "counter_sale" : "sale_order"] ?? []}
+            />
           </Card>
         )}
 
@@ -169,7 +174,9 @@ export function OrderDetail({ onToast }) {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-body font-semibold tnum">{inr(line.amount)}</div>
+                    <div className="text-body font-semibold tnum">
+                      {inr(line.line_total ?? line.amount)}
+                    </div>
                     <div className="mt-1"><ConfidenceChip value={line.confidence} /></div>
                   </div>
                 </div>
@@ -183,6 +190,36 @@ export function OrderDetail({ onToast }) {
             </div>
           </div>
         </div>
+
+        {/* Once the owner has approved, the goods are sold and the shop owes
+            the customer a tax invoice, not a quotation. Both stay on the
+            screen: the quote is what was offered, the invoice is what was
+            issued, and a shop is asked for either one later. */}
+        {order.invoice_path && (
+          <Card>
+            <div className="p-cardpad flex items-center gap-3">
+              <div className="w-[34px] h-[44px] rounded-[6px] bg-bg shrink-0" />
+              <div className="flex-1 min-w-0 text-left">
+                <div className="text-body font-semibold truncate">
+                  Tax invoice {order.invoice_no}
+                </div>
+                <div className="text-meta text-text-3">
+                  {inr(order.total)} · GST invoice
+                </div>
+              </div>
+              <button
+                onClick={() => shareDocument({
+                  path: order.invoice_path,
+                  title: `Tax invoice ${order.invoice_no}`,
+                  text: `Tax invoice ${order.invoice_no} — ${inr(order.total)}`,
+                })}
+                className="text-accent text-meta font-semibold shrink-0"
+              >
+                Share
+              </button>
+            </div>
+          </Card>
+        )}
 
         {order.quotation_path && (
           <Card>

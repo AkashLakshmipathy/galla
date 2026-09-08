@@ -52,6 +52,7 @@ def order_view(order: dict | None) -> dict | None:
     view["stock_suggestions"] = stock.suggestions_for(order)
     view["source_media_path"] = storage.http_path(order.get("source_media_url"))
     view["quotation_path"] = storage.http_path(order.get("quotation_url"))
+    view["invoice_path"] = storage.http_path(order.get("invoice_url"))
     return jsonable(view)
 
 

@@ -11,7 +11,7 @@ when the owner taps Save — see `core.transactions.confirm_purchase`.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from google.cloud.firestore_v1.base_query import FieldFilter
 from rapidfuzz import fuzz
@@ -45,6 +45,23 @@ Lower the confidence on any line where a digit is smudged, overwritten or
 ambiguous. Being honest about a doubtful digit is more useful than guessing it."""
 
 
+def demo_invoice_date(today: date | None = None) -> str:
+    """A recent date inside the current month, for the canned invoice.
+
+    The fixture used to carry a hardcoded `2026-08-26`. That is fine in August
+    and wrong every month after it: the GST compiler buckets inward supply by
+    `invoice_date`, so a stale date silently empties the input-tax-credit half
+    of the CA summary — the agent still runs, the PDF still renders, and the
+    number that should be there is quietly a zero. The rest of the seed already
+    dates itself relative to today; this brings the fixture in line.
+
+    Clamped to the 1st so it never slips into the previous month, and always a
+    few days back so it is never a future-dated invoice.
+    """
+    today = today or datetime.now(timezone.utc).date()
+    return today.replace(day=max(1, today.day - 5)).isoformat()
+
+
 def _fixture() -> dict:
     """The canned reading, for the demo only.
 
@@ -56,7 +73,11 @@ def _fixture() -> dict:
     if not DEMO_MODE:
         return {}
     path = FIXTURES_DIR / "supplier_invoice.json"
-    return json.loads(path.read_text("utf-8")) if path.exists() else {}
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text("utf-8"))
+    data["invoice_date"] = demo_invoice_date()
+    return data
 
 
 def _extract(payload: dict) -> tuple[dict, object]:

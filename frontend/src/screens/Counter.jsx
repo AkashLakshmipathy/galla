@@ -57,8 +57,11 @@ function ThreadItem({ item, chains }) {
     { interval: 1200, active: Boolean(data.trace_id) }
   );
   const running = !trace || trace.status === "running";
-  const chainKey = { order: "sale_order", purchase: "purchase_inv",
-                     khata: "khata_page" }[kind];
+  // A walk-in ran two agents, not six. Showing the full sale chain would draw
+  // four idle dots for steps that were never going to run on this sale.
+  const chainKey = kind === "order"
+    ? (data.source === "counter" ? "counter_sale" : "sale_order")
+    : { purchase: "purchase_inv", khata: "khata_page" }[kind];
   const steps = trace?.steps ?? [];
   const flagged = steps.filter((s) => s.status === "flagged").length;
 
@@ -168,10 +171,22 @@ function ThreadItem({ item, chains }) {
 
 export function Counter() {
   const { items, chains, loading } = useCounterFeed();
+  const navigate = useNavigate();
 
   return (
     <div className="px-gutter pt-2 space-y-3.5">
-      <h1 className="text-screen font-bold pt-1 pb-2">Counter</h1>
+      <div className="flex items-center justify-between pt-1 pb-2">
+        <h1 className="text-screen font-bold">Counter</h1>
+        {/* The walk-in path. The camera button handles paper arriving; this is
+            the customer standing in front of the owner right now. */}
+        <button
+          onClick={() => navigate("/sell")}
+          className="h-[38px] px-4 rounded-full bg-ink text-white text-body
+                     font-semibold active:opacity-80"
+        >
+          New sale
+        </button>
+      </div>
 
       {!loading && items.length === 0 && (
         <EmptyState

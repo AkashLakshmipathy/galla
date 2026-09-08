@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 _UNITS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight",
           "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
@@ -35,8 +36,22 @@ def pdf_text(text: str) -> str:
     return (text or "").replace("\u20b9", "Rs ").replace("Rs  ", "Rs ")
 
 
+def _group_indian(digits: str) -> str:
+    """'112500' -> '1,12,500'. Lakh/crore grouping, never thousands grouping."""
+    if len(digits) <= 3:
+        return digits
+    head, tail = digits[:-3], digits[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        groups.insert(0, head)
+    return f"{','.join(groups)},{tail}"
+
+
 def inr(amount) -> str:
-    """₹1,12,500 — lakh/crore grouping, never thousands grouping.
+    """₹1,12,500 — whole rupees, which is what the books and the UI hold.
 
     Coerces rather than raising: this formats model output as often as it does
     our own arithmetic, and a model that answers "1,575" where a number was asked
@@ -46,17 +61,27 @@ def inr(amount) -> str:
         amount = parse_amount(amount)
     n = int(round(amount or 0))
     sign = "-" if n < 0 else ""
-    s = str(abs(n))
-    if len(s) <= 3:
-        return f"{sign}₹{s}"
-    head, tail = s[:-3], s[-3:]
-    groups = []
-    while len(head) > 2:
-        groups.insert(0, head[-2:])
-        head = head[:-2]
-    if head:
-        groups.insert(0, head)
-    return f"{sign}₹{','.join(groups)},{tail}"
+    return f"{sign}₹{_group_indian(str(abs(n)))}"
+
+
+def inr_paise(amount) -> str:
+    """₹1,245.30 — the paise-exact form, for tax documents only.
+
+    The ledger is integers of rupees and `inr()` is right for every screen in
+    the app. A tax invoice is the one place that cannot round: print CGST 329
+    beside SGST 329 when the tax is really 657.30 and the columns no longer add
+    up to the total, which is exactly what a CA checks first.
+    """
+    if isinstance(amount, Decimal):
+        value = amount
+    elif isinstance(amount, str):
+        value = Decimal(str(parse_amount(amount)))
+    else:
+        value = Decimal(str(amount or 0))
+    value = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    sign = "-" if value < 0 else ""
+    whole, _, frac = str(abs(value)).partition(".")
+    return f"{sign}₹{_group_indian(whole)}.{(frac or '').ljust(2, '0')[:2]}"
 
 
 def ddmmyyyy(value: str | date | datetime | None) -> str:

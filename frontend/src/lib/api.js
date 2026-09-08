@@ -91,6 +91,13 @@ export const api = {
   gst: () => request("/api/gst"),
   gstPeriod: (period) => request(`/api/gst/${period}`),
 
+  catalogSearch: (q, limit = 8) =>
+    request(`/api/catalog/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  counterSalePreview: (body) =>
+    request("/api/counter-sale/preview", { method: "POST", body }),
+  counterSale: (body) => request("/api/counter-sale", { method: "POST", body }),
+  reissueInvoice: (id) => request(`/api/orders/${id}/invoice`, { method: "POST" }),
+
   decide: (id, body) => request(`/api/orders/${id}/decision`, { method: "POST", body }),
   editLines: (id, edits) => request(`/api/orders/${id}/lines`, { method: "PATCH", body: edits }),
   substitute: (id, body) => request(`/api/orders/${id}/substitute`, { method: "POST", body }),

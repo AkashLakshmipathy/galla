@@ -38,3 +38,17 @@ def seeded():
     yield client
     client.reset()
     catalog.invalidate()
+
+
+@pytest.fixture()
+def client(seeded):
+    """The API as the PWA sees it, over a freshly seeded shop.
+
+    The seed leaves the shop without a passcode, so the owner gate is open and
+    a test can call an endpoint without signing in first. `test_setup_auth`
+    covers the locked case deliberately.
+    """
+    from fastapi.testclient import TestClient
+
+    import main
+    return TestClient(main.app)

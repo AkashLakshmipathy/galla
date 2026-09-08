@@ -1,9 +1,15 @@
 """Routes a Pub/Sub event to the right agent chain, by event type.
 
 sale_order    : intake -> stock_pricing -> credit_guardian -> quotation -> notifier
+counter_sale  : billing                    (walk-in; no credit decision to make)
 purchase_inv  : purchase_entry -> notifier
 khata_page    : khata_digitizer -> notifier
 gst_compile   : gst_compiler -> notifier   (fired by Cloud Scheduler, not Pub/Sub)
+
+Approving a sale adds one step after the money has moved: `billing`, which mints
+the invoice number and renders the tax invoice. A quotation is what the shop
+offers; a tax invoice is what it issues once the goods are gone — so the invoice
+is deliberately not generated until the owner has approved.
 
 The sale chain deliberately stops short of generating a quotation when the
 Credit Guardian did not approve: the quotation is parked as a `waiting` step and
@@ -15,16 +21,21 @@ from __future__ import annotations
 
 import logging
 
-from agents import (credit_guardian_agent, gst_compiler_agent, intake_agent,
-                    khata_digitizer_agent, notifier_agent, purchase_entry_agent,
-                    quotation_agent, stock_pricing_agent)
+from agents import (billing_agent, credit_guardian_agent, gst_compiler_agent,
+                    intake_agent, khata_digitizer_agent, notifier_agent,
+                    purchase_entry_agent, quotation_agent, stock_pricing_agent)
 from core.firestore_client import db
 from core.trace import Trace
 
 log = logging.getLogger("galla.router")
 
 CHAINS = {
-    "sale_order": ["intake", "stock_pricing", "credit_guardian", "quotation", "notifier"],
+    "sale_order": ["intake", "stock_pricing", "credit_guardian", "quotation",
+                   "billing", "notifier"],
+    # No notifier on a counter sale: the customer is standing at the counter and
+    # the owner hands him the bill with the device's own share sheet. Listing a
+    # step that never runs would draw an idle dot on the strip for ever.
+    "counter_sale": ["billing"],
     "purchase_inv": ["purchase_entry", "notifier"],
     "khata_page": ["khata_digitizer", "notifier"],
     "gst_compile": ["gst_compiler", "notifier"],
@@ -59,6 +70,12 @@ def _sale_order(payload: dict, trace: Trace) -> dict:
     else:
         trace.waiting("quotation", "Held until you decide")
 
+    # The invoice is never minted before the owner taps approve — a tax invoice
+    # is issued once the goods are gone, and a number burned on an order that is
+    # then declined leaves a gap in the series. Park it so the strip says so
+    # rather than leaving a dot that looks like it failed.
+    trace.waiting("billing", "Invoice on approval")
+
     notifier_agent.run({"kind": "approval_card", "order": order}, trace)
     trace.finish("awaiting_owner")
     return order
@@ -75,6 +92,7 @@ def resume_after_decision(order: dict, kind: str, advance: int = 0) -> dict:
     try:
         if kind == "approve":
             order = quotation_agent.run(order, trace)
+            order = billing_agent.run(order, trace)
             notifier_agent.run({"kind": "quotation", "order": order}, trace)
         else:
             notifier_agent.run({"kind": "advance_request", "order": order,

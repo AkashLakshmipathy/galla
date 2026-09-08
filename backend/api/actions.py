@@ -10,12 +10,14 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
+from agents import billing_agent
 from agents import router as agent_router
 from agents import stock_pricing_agent
-from core import catalog, ids, merge, parties, serialize, stock, storage
-from core.config import CONFIDENCE_THRESHOLD
+from core import catalog, ids, merge, parties, serialize, stock, storage, tax
+from core.config import CONFIDENCE_THRESHOLD, SHOP_ID
 from core.firestore_client import db
 from core.money import order_totals, parse_amount
+from core.trace import Trace
 from core.transactions import (approve_order, commit_khata_import,
                                confirm_purchase, record_owner_action)
 
@@ -531,3 +533,183 @@ async def scan(files: list[UploadFile] = File(...), kind: str = Form("invoice"))
         queued.append({**result, "uri": uri,
                        "path": storage.http_path(uri), "filename": file.filename})
     return {"queued": queued, "count": len(queued)}
+
+
+# ------------------------------------------------------------- counter sale
+WALK_IN_PARTY = "walk_in"
+
+
+class CounterLine(BaseModel):
+    sku_id: str
+    qty: float = Field(default=1, gt=0)
+    unit_price: float | None = None      # owner override; else the party's tier
+    discount_pct: float = 0
+    discount: float = 0
+
+
+class CounterSale(BaseModel):
+    lines: list[CounterLine]
+    party_id: str | None = None          # None -> unregistered walk-in
+    # The counter quotes inclusive — "bag 445, with tax" — and a contractor's
+    # order quotes ex-tax off his tier. The screen sends whichever applies.
+    price_includes_tax: bool = True
+    paid: bool = True
+    note: str = ""
+
+
+def _counter_lines(body: CounterSale, tier: str) -> list[dict]:
+    """Counter input -> order lines, priced off the catalogue.
+
+    A price the owner typed wins over the tier and is marked as overridden, the
+    same rule the line editor uses: the shop's word beats the catalogue's.
+    """
+    rows = catalog.load()
+    lines: list[dict] = []
+    for item in body.lines:
+        sku = catalog.by_id(item.sku_id, rows)
+        if not sku:
+            raise HTTPException(400, f"unknown sku {item.sku_id}")
+        overridden = item.unit_price is not None
+        rate = float(item.unit_price) if overridden else catalog.rate_for(sku, tier)
+        lines.append({
+            "sku_id": sku["sku_id"], "name_raw": sku.get("name", ""),
+            "qty": item.qty, "unit": sku.get("unit", ""),
+            "rate": rate, "rate_overridden": overridden,
+            "gst_rate": sku.get("gst_rate", 0),
+            "hsn_code": sku.get("hsn_code", ""),
+            "discount": item.discount, "discount_pct": item.discount_pct,
+            "price_includes_tax": body.price_includes_tax,
+            "confidence": 1.0,           # the owner tapped it; nothing was inferred
+            "in_stock": stock.stock_of(sku["sku_id"]) >= item.qty,
+        })
+    return lines
+
+
+@router.post("/counter-sale/preview")
+def counter_sale_preview(body: CounterSale):
+    """Price a basket without writing anything — the counter screen's live total.
+
+    This exists so the screen never has to reimplement the tax rules in
+    JavaScript. Two copies of money arithmetic is two things to keep in step,
+    and the one on the phone would be the one nobody unit-tests. It is a pure
+    call over the cached catalogue: no model, no database write, no number
+    minted.
+    """
+    if not body.lines:
+        return {"invoice": tax.compute_invoice([]).as_dict()}
+    party_id = body.party_id or WALK_IN_PARTY
+    party = db().collection("parties").document(party_id).get().to_dict() or {}
+    shop = db().collection("shop").document(SHOP_ID).get().to_dict() or {}
+    order = {
+        "lines": _counter_lines(body, party.get("price_tier", "retail")),
+        "price_includes_tax": body.price_includes_tax,
+    }
+    return {"invoice": billing_agent.price(order, party, shop).as_dict(),
+            "party_name": party.get("name"),
+            "price_tier": party.get("price_tier", "retail")}
+
+
+@router.post("/counter-sale")
+def counter_sale(body: CounterSale):
+    """Walk-in billing: tap items, bill, share. The whole P0 counter flow.
+
+    Reuses the order pipeline rather than forking it — the same `approve_order`
+    transaction moves the stock and writes the ledger, so a counter sale lands
+    in the GST outward register and the day's books exactly like any other sale.
+    There is no credit decision here because there is no credit: the customer
+    pays as he takes the goods.
+
+    Ordering matters. The bill is priced first so the ledger entry carries the
+    real payable, then the money moves, and only then is an invoice number
+    minted — a number handed out before the transaction commits would leave a
+    gap in the series if the transaction failed.
+    """
+    if not body.lines:
+        raise HTTPException(400, "a sale needs at least one line")
+
+    party_id = body.party_id or WALK_IN_PARTY
+    party = db().collection("parties").document(party_id).get().to_dict()
+    if not party:
+        raise HTTPException(404, f"party {party_id} not found")
+    shop = db().collection("shop").document(SHOP_ID).get().to_dict() or {}
+
+    lines = _counter_lines(body, party.get("price_tier", "retail"))
+    order_id = ids.order_id()
+
+    # The trace is opened before the order document is written so `trace_id` is
+    # on the record from the first read. The counter feed decides whether a card
+    # is still working by whether it can find a trace; an order saved without
+    # one is a sale that has already completed but shows a spinner for ever.
+    trace = Trace("counter_sale", {"type": "order", "id": order_id})
+    order = {
+        "order_id": order_id, "party_id": party_id, "source": "counter",
+        "lines": lines, "price_includes_tax": body.price_includes_tax,
+        "status": "counter", "trace_id": trace.trace_id,
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    priced = billing_agent.price(order, party, shop)
+
+    # The GST outward register buckets sales by `line.amount`, and reads it as
+    # the taxable value. Leaving it unset counts the invoice but contributes a
+    # zero to the taxable column — a sale that generated no tax, which is the
+    # kind of silent wrong number nobody notices until a CA does. The engine has
+    # already worked out the taxable value per line; write it back.
+    for line, computed in zip(lines, priced.lines):
+        line["amount"] = int(round(float(computed.taxable)))
+        # What the customer pays for this line, which on an inclusive sale is
+        # not the taxable value. Without it the row reads "2 bag x Rs 445" and
+        # then shows Rs 695, because `amount` is deliberately the taxable
+        # figure the GST register wants.
+        line["line_total"] = int(round(float(computed.total)))
+
+    order.update({
+        "subtotal": float(priced.subtotal_taxable),
+        "gst": {"cgst": float(priced.total_cgst), "sgst": float(priced.total_sgst),
+                "igst": float(priced.total_igst), "total": float(priced.total_tax)},
+        "total": priced.payable,
+    })
+    db().collection("orders").document(order_id).set(order)
+
+    try:
+        approve_order(order_id, note=body.note or "Counter sale", paid=body.paid)
+        order = db().collection("orders").document(order_id).get().to_dict()
+        order = billing_agent.run(order, trace)
+        trace.finish("complete")
+    except Exception as exc:                              # noqa: BLE001
+        trace.finish("failed", error=str(exc))
+        raise
+
+    return {"order": serialize.order_view(order), "trace_id": trace.trace_id,
+            "invoice_no": order.get("invoice_no"),
+            "invoice_url": storage.http_path(order.get("invoice_url"))}
+
+
+@router.post("/orders/{order_id}/invoice")
+def reissue_invoice(order_id: str):
+    """Re-render the tax invoice for an approved order.
+
+    An order that already carries a number gets that same number back on a
+    document marked Duplicate — the shop reprints a bill the customer lost
+    without ever burning a second number out of the series.
+    """
+    order = db().collection("orders").document(order_id).get().to_dict()
+    if not order:
+        raise HTTPException(404, "order not found")
+    if order.get("status") != "approved":
+        raise HTTPException(409, "only an approved order has a tax invoice")
+
+    # Append to the order's own trace rather than opening a second one. A
+    # reprint is another chapter of this order's story, and an orphan trace
+    # with no order pointing at it is a row nothing will ever render.
+    trace = (Trace.load(order["trace_id"]) if order.get("trace_id")
+             else Trace("counter_sale", {"type": "order", "id": order_id}))
+    try:
+        order = billing_agent.run(order, trace)
+        trace.finish("complete")
+    except Exception as exc:                              # noqa: BLE001
+        trace.finish("failed", error=str(exc))
+        raise
+    return {"invoice_no": order.get("invoice_no"),
+            "invoice_url": storage.http_path(order.get("invoice_url")),
+            "trace_id": trace.trace_id}

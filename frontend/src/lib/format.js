@@ -16,6 +16,17 @@ export function inr(amount, { paise = false } = {}) {
   return `${sign}₹${groups.join(",")},${tail}`;
 }
 
+// The counter and the tax invoice are the only places that show paise. The
+// books are integers of rupees, so `inr` stays the default everywhere else —
+// but a GST split of 97.35 + 97.34 must not display as 97 + 97.
+export function inrPaise(amount) {
+  const value = Number(amount) || 0;
+  const sign = value < 0 ? "-" : "";
+  const fixed = Math.abs(value).toFixed(2);
+  const [whole, decimals] = fixed.split(".");
+  return `${sign}${inr(whole)}.${decimals}`;
+}
+
 export function shortInr(amount) {
   const value = Math.round(Number(amount) || 0);
   if (Math.abs(value) >= 10000000) return `₹${(value / 10000000).toFixed(1)}Cr`;

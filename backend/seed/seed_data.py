@@ -30,9 +30,24 @@ SHOP = {
 }
 
 PARTIES = [
+    # The counter's default customer. Every walk-in sale is booked against this
+    # one profile: unregistered (so B2C and intra-state), retail tier, and a
+    # zero credit limit because a walk-in pays as he takes the goods. Without a
+    # party to name, a cash sale would have nowhere to write its ledger pair.
+    {"party_id": "walk_in", "name": "Walk-in customer",
+     "name_ta": "நேரடி வாடிக்கையாளர்", "type": "customer",
+     "price_tier": "retail", "gstin": None,
+     "credit": {"limit": 0, "outstanding": 0, "last_payment_date": None,
+                "last_payment_amount": 0, "days_since_payment": 0,
+                "avg_days_to_pay": 0, "dispute_count": 0}},
     # Selvam is the demo's amber case: 92% of limit after the new order.
+    # Registered, because a contractor at this volume is: it makes his sales
+    # B2B in the outward register, puts his GSTIN on his tax invoice as the law
+    # requires, and means the CA summary's B2B row is not a permanent zero.
+    # The walk-in beside him stays unregistered — that contrast is the split.
     {"party_id": "selvam", "name": "Selvam", "name_ta": "செல்வம்", "type": "customer",
-     "price_tier": "contractor",
+     "price_tier": "contractor", "gstin": "33AJKPS4471M1Z8",
+     "state_code": "33",
      "credit": {"limit": 95000, "outstanding": 87400, "last_payment_date": _days_ago(34),
                 "last_payment_amount": 20000, "days_since_payment": 34,   # recomputed on read; seeded for completeness
                 "avg_days_to_pay": 41, "dispute_count": 0}},

@@ -33,10 +33,35 @@ def _in_period(value, period: str) -> bool:
     return str(value or "")[:7] == period
 
 
+def _order_tax(order: dict) -> tuple[float, float, float]:
+    """(taxable, cgst, sgst) for one sale.
+
+    Read off the tax invoice that was actually issued, whenever there is one.
+    Recomputing here from `line.amount` rounds each line to a whole rupee and
+    lands a couple of rupees away from the document the customer is holding —
+    and the CA reconciles the summary against those documents. The fallback
+    covers an approved order that predates billing; it is the old arithmetic,
+    kept only so such a row still counts for something.
+    """
+    invoice = order.get("invoice") or {}
+    if invoice:
+        return (float(invoice.get("subtotal_taxable") or 0),
+                float(invoice.get("cgst") or 0), float(invoice.get("sgst") or 0))
+
+    taxable = cgst = sgst = 0.0
+    for line in order.get("lines") or []:
+        amount = int(line.get("amount") or 0)
+        split = gst_split(amount, float(line.get("gst_rate") or 0))
+        taxable += amount
+        cgst += split["cgst"]
+        sgst += split["sgst"]
+    return taxable, cgst, sgst
+
+
 def _outward(period: str) -> dict:
     """Sales that actually happened — approved orders only, never drafts."""
-    b2b = {"taxable": 0, "cgst": 0, "sgst": 0, "invoice_count": 0}
-    b2c = {"taxable": 0, "cgst": 0, "sgst": 0, "invoice_count": 0}
+    b2b = {"taxable": 0.0, "cgst": 0.0, "sgst": 0.0, "invoice_count": 0}
+    b2c = {"taxable": 0.0, "cgst": 0.0, "sgst": 0.0, "invoice_count": 0}
     parties = {snap.id: (snap.to_dict() or {})
                for snap in db().collection("parties").stream()}
     for snap in db().collection("orders").stream():
@@ -48,13 +73,17 @@ def _outward(period: str) -> dict:
             continue
         registered = bool((parties.get(order.get("party_id")) or {}).get("gstin"))
         bucket = b2b if registered else b2c
-        for line in order.get("lines") or []:
-            taxable = int(line.get("amount") or 0)
-            split = gst_split(taxable, float(line.get("gst_rate") or 0))
-            bucket["taxable"] += taxable
-            bucket["cgst"] += split["cgst"]
-            bucket["sgst"] += split["sgst"]
+        taxable, cgst, sgst = _order_tax(order)
+        bucket["taxable"] += taxable
+        bucket["cgst"] += cgst
+        bucket["sgst"] += sgst
         bucket["invoice_count"] += 1
+
+    # Paise are carried through the sum and rounded once, at the end — the same
+    # rule the invoice foot uses, so the two never drift apart.
+    for bucket in (b2b, b2c):
+        for key in ("taxable", "cgst", "sgst"):
+            bucket[key] = int(round(bucket[key]))
 
     total = {key: b2b[key] + b2c[key] for key in b2b}
     total["total"] = total["taxable"] + total["cgst"] + total["sgst"]

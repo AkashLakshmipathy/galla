@@ -211,6 +211,8 @@ def fleet() -> list[dict]:
          "does": "deterministic credit verdict, Gemini phrases it"},
         {"agent": "quotation", "label": "Quotation",
          "does": "GST quotation PDF with HSN + CGST/SGST split"},
+        {"agent": "billing", "label": "Billing",
+         "does": "invoice number, tax invoice PDF, share link — no model call"},
         {"agent": "purchase_entry", "label": "Purchase Entry",
          "does": "supplier invoice OCR → stock delta + payable"},
         {"agent": "khata_digitizer", "label": "Khata Digitizer",

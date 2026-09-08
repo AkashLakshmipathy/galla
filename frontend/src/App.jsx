@@ -9,6 +9,7 @@ import { useOnline, usePolling, useToast } from "./lib/hooks.js";
 import { Approvals } from "./screens/Approvals.jsx";
 import { ConfirmQueue } from "./screens/ConfirmQueue.jsx";
 import { Counter } from "./screens/Counter.jsx";
+import { CounterSale } from "./screens/CounterSale.jsx";
 import { Credit, PartyLedger } from "./screens/Credit.jsx";
 import { Purchases, SupplierLedger } from "./screens/Purchases.jsx";
 import { LockScreen, Onboarding } from "./screens/Onboarding.jsx";
@@ -108,6 +109,7 @@ export default function App() {
       <main className={isTab ? "pb-[96px]" : "pb-8"} key={nudge}>
         <Routes>
           <Route path="/" element={<Counter onToast={showToast} />} />
+          <Route path="/sell" element={<CounterSale onToast={showToast} />} />
           <Route path="/approvals" element={<Approvals onToast={showToast} />} />
           <Route path="/credit" element={<Credit />} />
           <Route path="/credit/:partyId" element={<PartyLedger />} />

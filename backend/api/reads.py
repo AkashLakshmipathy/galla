@@ -353,6 +353,16 @@ def purchases_book(period: str = "month", limit_periods: int = 24):
     }
 
 
+@router.get("/catalog/search")
+def catalog_search(q: str = "", limit: int = 8):
+    """Search-as-you-type for the counter screen.
+
+    In-process over the cached catalogue, so it answers in microseconds and
+    costs nothing — there is no model call and no database query behind this.
+    """
+    return {"query": q, "results": catalog.search(q, limit=limit)}
+
+
 @router.get("/inventory")
 def inventory():
     rows = catalog.load()
