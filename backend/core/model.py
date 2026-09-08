@@ -37,8 +37,14 @@ NONE = "none"
 
 # Claude for the work that needs judgement, Nova for the high-volume extraction.
 # Both are the ids Bedrock serves; override per environment rather than in code.
-BEDROCK_MODEL = os.environ.get("BEDROCK_MODEL", "global.anthropic.claude-sonnet-4-6")
-BEDROCK_MODEL_FAST = os.environ.get("BEDROCK_MODEL_FAST", "us.amazon.nova-lite-v1:0")
+# Sonnet where the work is hard or a human reads the output, Haiku where the
+# input is clean and the trace strip is waiting on camera. Both verified
+# grantable on this account; Sonnet 4.6 still sits behind Anthropic's use-case
+# form and Sonnet 5 is not offered here, so these are the best available pair.
+BEDROCK_MODEL = os.environ.get(
+    "BEDROCK_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+BEDROCK_MODEL_FAST = os.environ.get(
+    "BEDROCK_MODEL_FAST", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
 BEDROCK_REGION = os.environ.get("AWS_REGION") or os.environ.get(
     "AWS_DEFAULT_REGION", "us-east-1")
 
@@ -66,11 +72,17 @@ def _aws_credentialed() -> bool:
 @lru_cache(maxsize=1)
 def provider() -> str:
     """Which provider this process will use. Decided once, logged in the trace."""
+    # GALLA_NO_LLM is a hard override and is checked first, deliberately. The
+    # test suite sets it to force the deterministic path; `.env` sets
+    # GALLA_MODEL_PROVIDER for the app. Reading the provider first let the
+    # developer's `.env` win over conftest and the whole suite quietly started
+    # billing real API calls — slow, flaky, and it stops testing the fallbacks
+    # that keep the demo alive, which is the one thing those tests are for.
+    if os.environ.get("GALLA_NO_LLM"):
+        return NONE
     choice = (os.environ.get("GALLA_MODEL_PROVIDER") or "").strip().lower()
     if choice in {BEDROCK, LITELLM, NONE}:
         return choice
-    if os.environ.get("GALLA_NO_LLM"):
-        return NONE
     # Prefer the provider we can be sure of. Bedrock is the better answer for
     # this hackathon and one env var away, but "credentials exist" is not the
     # same as "Bedrock is reachable and the models are granted" — a laptop with
