@@ -66,7 +66,18 @@ def _gst_summary(payload: dict) -> str:
     ref = db().collection("gst_registers").document(period)
     shop = db().collection("shop").document("main").get().to_dict() or {}
     ca = shop.get("ca_contact") or {}
-    channel = "whatsapp" if ca.get("phone") else "email"
+    channel = ("whatsapp" if ca.get("phone")
+               else "email" if ca.get("email") else None)
+
+    # Both CA fields are optional, so a shop can reach this with nowhere to send
+    # the summary. Marking it "sent" then would be the app telling the owner his
+    # accountant has the figures when nobody does — and he would find out in
+    # whichever month the CA asked where they were. It waits instead.
+    if channel is None:
+        ref.update({"status": "ready", "ca_channel": None})
+        return (f"CA-ready summary for {period} is waiting — add your CA's "
+                f"phone or email in Shop to send it")
+
     ref.update({"sent_to_ca_at": datetime.now(timezone.utc),
                 "ca_channel": channel, "status": "sent"})
     return (f"CA-ready summary for {period} sent to {ca.get('name', 'the CA')} "

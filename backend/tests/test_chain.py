@@ -126,3 +126,31 @@ def test_gst_compiler_reports_a_ca_ready_summary(seeded):
     assert "file" not in register["note"].lower() or "filed" not in register["note"].lower()
     saved = db().collection("gst_registers").document(period).get().to_dict()
     assert saved["status"] == "sent" and saved["sent_to_ca_at"] is not None
+
+
+def test_the_gst_summary_waits_when_the_ca_has_no_address(seeded):
+    """Both CA fields are optional, so a shop can reach month end with nowhere
+    to send the summary. Marking it sent would tell the owner his accountant has
+    the figures when nobody does — and he finds out the month the CA asks."""
+    from agents import router
+    db().collection("shop").document("main").update({"ca_contact": {"name": "CA"}})
+    period = "2026-08"
+    router.handle("gst_compile", {"period": period})
+
+    saved = db().collection("gst_registers").document(period).get().to_dict()
+    assert saved["status"] == "ready", "not 'sent' — nothing was sent"
+    assert saved["ca_channel"] is None
+    assert saved.get("sent_to_ca_at") is None
+
+
+def test_an_email_only_ca_still_gets_the_summary(seeded):
+    """Phone is optional; an email is a perfectly good address for a document
+    a CA opens on a computer."""
+    from agents import router
+    db().collection("shop").document("main").update(
+        {"ca_contact": {"name": "CA Suresh", "email": "suresh@ca.in"}})
+    period = "2026-08"
+    router.handle("gst_compile", {"period": period})
+
+    saved = db().collection("gst_registers").document(period).get().to_dict()
+    assert saved["ca_channel"] == "email" and saved["status"] == "sent"

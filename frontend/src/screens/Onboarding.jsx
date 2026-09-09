@@ -137,14 +137,25 @@ export function Onboarding({ states = {}, onDone }) {
               <input className={input} value={form.credit_limit} inputMode="numeric"
                      onChange={set("credit_limit")} />
             </Field>
+            {/* All three are optional and the hints say so on each, not once at
+                the top — a field with no "optional" beside it reads as required
+                when the one above it is labelled. The monthly summary goes
+                wherever there is an address for it; with neither, it waits in
+                the app until the owner adds one. */}
             <Field label="Your CA's name"
                    hint="Optional — who receives the monthly summary">
               <input className={input} value={form.ca_name} onChange={set("ca_name")}
                      placeholder="CA Ramesh" />
             </Field>
-            <Field label="Your CA's phone">
+            <Field label="Your CA's phone" hint="Optional">
               <input className={input} value={form.ca_phone} onChange={set("ca_phone")}
                      placeholder="+91 98422 11111" inputMode="tel" />
+            </Field>
+            <Field label="Your CA's email"
+                   hint="Optional — a summary is easier to open on a computer">
+              <input className={input} value={form.ca_email} onChange={set("ca_email")}
+                     placeholder="ramesh@krishnanandco.in" inputMode="email"
+                     autoCapitalize="none" autoCorrect="off" type="email" />
             </Field>
           </Card>
         </div>
