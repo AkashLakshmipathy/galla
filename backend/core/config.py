@@ -24,6 +24,14 @@ def _load_dotenv() -> None:
     stale local file can never shadow a deployed setting. `.env` is gitignored;
     production secrets belong in Secret Manager, not here.
     """
+    # A test run must not inherit the developer's `.env`. conftest strips the
+    # credentials out of the environment, but this function used to hand them
+    # straight back — it only skips keys already present, and popped keys are
+    # not present. That is how the suite ended up making live billable calls
+    # off a machine-local file, and how a laptop could pass a suite that fails
+    # in CI. conftest sets this before importing anything under `core`.
+    if os.environ.get("GALLA_SKIP_DOTENV"):
+        return
     path = _REPO_ROOT / ".env"
     if not path.exists():
         return
