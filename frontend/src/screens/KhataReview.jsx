@@ -166,8 +166,12 @@ export function KhataReview({ onToast }) {
             >
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="text-body font-semibold tnum">
-                    {ddmmyyyy(row.date)}
+                  {/* Not every khata line carries a date. Saying so is better
+                      than an empty heading, and it tells him which rows need a
+                      date typed in before they post. */}
+                  <div className={`text-body font-semibold tnum ${
+                    row.date ? "" : "text-text-3 font-normal"}`}>
+                    {row.date ? ddmmyyyy(row.date) : "No date on the page"}
                   </div>
                   <div className="text-meta text-text-2 mt-0.5">
                     {row.entry_type === "payment_received"

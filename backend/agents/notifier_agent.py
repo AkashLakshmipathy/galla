@@ -35,7 +35,11 @@ def _approval_card(payload: dict) -> str:
                 f"{len(purchase.get('lines') or [])} lines to review")
     if payload.get("khata"):
         record = payload["khata"]
-        return (f"Khata page {record.get('page_no')} read — "
+        # A khata page rarely carries a number, and "Khata page None read" is
+        # what the owner saw when it did not. Name the customer instead — that
+        # is what he is looking for anyway.
+        whose = record.get("party_name_raw") or record.get("page_no")
+        return (f"{whose or 'Khata page'} read — "
                 f"{record.get('auto_accepted_count', 0)} clear, "
                 f"{record.get('needs_confirm_count', 0)} to confirm")
     order = payload.get("order") or {}

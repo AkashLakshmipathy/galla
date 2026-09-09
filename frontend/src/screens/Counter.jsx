@@ -150,19 +150,26 @@ function ThreadItem({ item, chains }) {
             </div>
           )}
 
+          {/* Every card carried an equally loud second tier, so a feed of four
+              read as eight blocks and the one card that actually wanted him
+              looked like the three that did not. The line stays — it is how the
+              shop sees what the machine did — but it recedes when there is
+              nothing to answer for, and only speaks up when there is. */}
           <button
             onClick={() => setShowTrace((v) => !v)}
-            className="w-full px-cardpad py-2.5 flex items-center gap-2
-                       border-t border-separator text-meta text-text-2"
+            className={`w-full px-cardpad py-2.5 flex items-center gap-2
+                       border-t border-separator text-meta
+                       ${flagged ? "text-text-2" : "text-text-3"}`}
           >
             <span className={`w-[6px] h-[6px] rounded-full
-              ${flagged ? "bg-amber" : "bg-ink"}`} />
+              ${flagged ? "bg-amber" : "bg-chevron"}`} />
             <span className="flex-1 text-left">
               {flagged
                 ? `${flagged} thing${flagged === 1 ? "" : "s"} need your eye`
                 : "Checked — nothing needs you"}
             </span>
-            <span className="text-accent font-semibold">
+            <span className={flagged
+              ? "text-accent font-semibold" : "text-text-3"}>
               {showTrace ? "Hide" : "Show"}
             </span>
           </button>
