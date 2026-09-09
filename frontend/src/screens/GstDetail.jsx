@@ -5,6 +5,7 @@ import { DocPreview } from "../components/DocPreview.jsx";
 import { TraceRelay } from "../components/TraceRelay.jsx";
 import { Card, FatPill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { shareDocument } from "../lib/share.js";
 import { ddmmyyyy, inr, monthName, timeOfDay } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";
 
@@ -88,13 +89,32 @@ export function GstDetail() {
           </Card>
         )}
 
+        {/* One document, one job: get it to the accountant. The screen used to
+            lead with "Preview summary", which opened a sheet holding the two
+            actions that actually do something — four taps' worth of choice for
+            a man who wants to send one file. Sending leads now, looking at it
+            first is the alternative, and the CSV stays for the accountant who
+            asks for it rather than sitting at the same weight as the rest. */}
         <div className="space-y-1.5 pt-1">
-          <FatPill onClick={() => setPreview(true)}>Preview summary</FatPill>
-          <FatPill variant="secondary"
-                   onClick={() => register.registers_csv_path
-                     && window.open(register.registers_csv_path, "_blank", "noopener")}>
-            Download registers CSV
+          <FatPill onClick={() => shareDocument({
+            path: register.summary_pdf_path,
+            title: `GST summary ${period}`,
+            text: `${shop?.name ?? "Shop"} — CA-ready GST summary for ${monthName(period)}`,
+          })}>
+            Send to the CA
           </FatPill>
+          <FatPill variant="secondary" onClick={() => setPreview(true)}>
+            Look at it first
+          </FatPill>
+          {register.registers_csv_path && (
+            <button
+              onClick={() => window.open(register.registers_csv_path,
+                                         "_blank", "noopener")}
+              className="w-full text-meta text-text-3 py-2"
+            >
+              Registers as CSV — for your accountant's software
+            </button>
+          )}
         </div>
         <p className="text-micro text-text-3 text-center">
           CA-ready summary · Galla does not file your GST.

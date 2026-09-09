@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Gauge } from "../components/Gauge.jsx";
 import { MergeSheet } from "../components/MergeSheet.jsx";
-import { Card, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
+import { Card, Chevron, GroupedList, Row, SectionLabel } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { inr, monthName, timeOfDay } from "../lib/format.js";
 import { usePolling } from "../lib/hooks.js";
@@ -29,6 +29,10 @@ function StatRow({ label, value, delta, deltaTone }) {
 
 export function Shop({ onToast }) {
   const navigate = useNavigate();
+  const owing = (exposure?.top ?? []).filter(
+    (p) => (p.credit?.outstanding ?? 0) > 0).length;
+  const nearLimit = (exposure?.top ?? []).filter(
+    (p) => (p.exposure_pct ?? 0) > 75).length;
   const [pair, setPair] = useState(null);
   const { data } = usePolling(api.dashboard, { interval: 5000 });
   const { data: dupes, refresh: refreshDupes } = usePolling(api.duplicates,
@@ -59,25 +63,25 @@ export function Shop({ onToast }) {
       <Card className={`p-cardpad pt-6 ${exposure && exposure.limit === 0 ? "hidden" : ""}`}>
         <SectionLabel className="text-center">Credit exposure</SectionLabel>
         <Gauge outstanding={exposure?.outstanding ?? 0} limit={exposure?.limit ?? 1} />
-        <div className="mt-5">
-          {(exposure?.top ?? []).slice(0, 5).map((party) => (
-            <button key={party.party_id}
-                    onClick={() => navigate(`/`)}
-                    className="w-full flex items-center gap-2.5 py-[9px] border-b
-                               border-separator last:border-0 text-left">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${
-                party.exposure_pct > 75 ? "bg-red"
-                  : party.exposure_pct > 40 ? "bg-amber" : "bg-green"}`} />
-              <span className="text-row flex-1 truncate">{party.name}</span>
-              <span className="text-row tnum text-text-2">
-                {inr(party.credit?.outstanding)}
-              </span>
-              <span className="text-meta tnum text-text-3 w-9 text-right">
-                {party.exposure_pct}%
-              </span>
-            </button>
-          ))}
-        </div>
+        {/* This was the same ranked customer list the credit book already
+            shows, truncated to five — and every row navigated to the counter
+            rather than to the customer, so tapping a name with a lakh against
+            it went home. Shop answers "how much is out there"; Credit answers
+            "with whom". One line joins them. */}
+        <button
+          onClick={() => navigate("/credit")}
+          className="w-full mt-5 pt-4 border-t border-separator flex items-center
+                     gap-2 text-left"
+        >
+          <span className="flex-1 text-row text-text-2">
+            {owing} {owing === 1 ? "customer owes" : "customers owe"} you
+            {nearLimit > 0 && (
+              <span className="text-amber-deep"> · {nearLimit} near the line</span>
+            )}
+          </span>
+          <span className="text-row text-accent font-semibold">The book</span>
+          <Chevron />
+        </button>
       </Card>
 
       <Card className="p-cardpad">

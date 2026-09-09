@@ -382,7 +382,13 @@ def commit_khata_import(import_id: str) -> dict:
                 "balance_after": balances[party_id],
                 "ref": {"type": "khata_import", "id": import_id},
                 "source": "khata_import",
-                "note": f"Page {record.get('page_no')} row {row.get('row_id')}",
+                # Most khata pages carry no number, and "Page None row r3" is
+                # what a ledger entry said when they did not. This note is the
+                # audit trail back to the photograph, so it names the import,
+                # which always exists, and the page only when there is one.
+                "note": (f"Page {record['page_no']} row {row.get('row_id')}"
+                         if record.get("page_no")
+                         else f"Khata {record.get('import_id')} row {row.get('row_id')}"),
                 "created_at": datetime.now(timezone.utc),
             })
             row["ledger_entry_id"] = entry_id
