@@ -3,9 +3,15 @@
 Hard rule 10: the provider lives here and is changed with one environment
 variable, `GALLA_MODEL_PROVIDER`. No other file in the repo names a vendor.
 
+    GALLA_MODEL_PROVIDER=vertex     Gemini on Vertex AI, billed to our GCP project
+    GALLA_MODEL_PROVIDER=litellm    Gemini through an AI Studio API key
     GALLA_MODEL_PROVIDER=bedrock    Amazon Bedrock — Strands' native provider
-    GALLA_MODEL_PROVIDER=litellm    Gemini through LiteLLM
     GALLA_MODEL_PROVIDER=none       force the deterministic path (tests, demo)
+
+Vertex and AI Studio reach the same models by different doors, and the door
+matters: an AI Studio key has its own free-tier quota that no amount of GCP
+credit can raise, while Vertex bills the project and carries proper quotas.
+Running out of the former is what sent us looking for the latter.
 
 Unset, it takes the path it can verify: a Gemini key, else AWS credentials,
 else deterministic. Bedrock is deliberately opt-in — see `provider()`.
@@ -29,10 +35,12 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from core.config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_MODEL_FAST
+from core.config import (GEMINI_API_KEY, GEMINI_MODEL, GEMINI_MODEL_FAST,
+                         PROJECT, VERTEX_LOCATION)
 
 BEDROCK = "bedrock"
-LITELLM = "litellm"
+LITELLM = "litellm"      # Gemini through an AI Studio API key
+VERTEX = "vertex"        # Gemini through Vertex AI on our own GCP project
 NONE = "none"
 
 # Claude for the work that needs judgement, Nova for the high-volume extraction.
@@ -48,9 +56,12 @@ BEDROCK_MODEL_FAST = os.environ.get(
 BEDROCK_REGION = os.environ.get("AWS_REGION") or os.environ.get(
     "AWS_DEFAULT_REGION", "us-east-1")
 
-# LiteLLM addresses Gemini as `gemini/<model>`; our config already pins the ids.
+# LiteLLM addresses Gemini as `gemini/<model>` through AI Studio and
+# `vertex_ai/<model>` through Vertex; our config already pins the ids.
 LITELLM_MODEL = os.environ.get("LITELLM_MODEL", f"gemini/{GEMINI_MODEL}")
 LITELLM_MODEL_FAST = os.environ.get("LITELLM_MODEL_FAST", f"gemini/{GEMINI_MODEL_FAST}")
+VERTEX_MODEL = os.environ.get("VERTEX_MODEL", f"vertex_ai/{GEMINI_MODEL}")
+VERTEX_MODEL_FAST = os.environ.get("VERTEX_MODEL_FAST", f"vertex_ai/{GEMINI_MODEL_FAST}")
 
 TEMPERATURE = float(os.environ.get("MODEL_TEMPERATURE", "0.1"))
 MAX_TOKENS = int(os.environ.get("MODEL_MAX_TOKENS", "2048"))
@@ -69,6 +80,18 @@ def _aws_credentialed() -> bool:
     return (Path.home() / ".aws" / "credentials").exists()
 
 
+def _vertex_credentialed() -> bool:
+    """Application Default Credentials, or the service account Cloud Run gives us.
+
+    No network call: this runs at import on every cold start, and a round trip
+    here would land as latency on the shop's first scan of the day.
+    """
+    if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.environ.get("K_SERVICE"):
+        return True
+    adc = Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+    return adc.exists()
+
+
 @lru_cache(maxsize=1)
 def provider() -> str:
     """Which provider this process will use. Decided once, logged in the trace."""
@@ -81,7 +104,7 @@ def provider() -> str:
     if os.environ.get("GALLA_NO_LLM"):
         return NONE
     choice = (os.environ.get("GALLA_MODEL_PROVIDER") or "").strip().lower()
-    if choice in {BEDROCK, LITELLM, NONE}:
+    if choice in {BEDROCK, LITELLM, VERTEX, NONE}:
         return choice
     # Prefer the provider we can be sure of. Bedrock is the better answer for
     # this hackathon and one env var away, but "credentials exist" is not the
@@ -90,6 +113,8 @@ def provider() -> str:
     # wrong is not free: every call would spend its whole timeout before the
     # deterministic fallback catches it, which on camera is a dead counter.
     # So auto-detect picks the verified path, and Bedrock is chosen explicitly.
+    if _vertex_credentialed():
+        return VERTEX
     if GEMINI_API_KEY:
         return LITELLM
     if _aws_credentialed():
@@ -115,6 +140,17 @@ def model(fast: bool = False):
                 temperature=TEMPERATURE,
                 max_tokens=MAX_TOKENS,
             )
+        if which == VERTEX:
+            from strands.models.litellm import LiteLLMModel
+            # `client_args` is spread straight into `litellm.acompletion`, which
+            # is how the project and region reach Vertex. Auth is ADC, so there
+            # is no key to leak into an environment variable.
+            return LiteLLMModel(
+                client_args={"vertex_project": PROJECT,
+                             "vertex_location": VERTEX_LOCATION},
+                model_id=VERTEX_MODEL_FAST if fast else VERTEX_MODEL,
+                params={"temperature": TEMPERATURE, "max_tokens": MAX_TOKENS},
+            )
         if which == LITELLM:
             from strands.models.litellm import LiteLLMModel
             return LiteLLMModel(
@@ -136,6 +172,8 @@ def model_id(fast: bool = False) -> str:
         return BEDROCK_MODEL_FAST if fast else BEDROCK_MODEL
     if which == LITELLM:
         return LITELLM_MODEL_FAST if fast else LITELLM_MODEL
+    if which == VERTEX:
+        return VERTEX_MODEL_FAST if fast else VERTEX_MODEL
     return "deterministic"
 
 
