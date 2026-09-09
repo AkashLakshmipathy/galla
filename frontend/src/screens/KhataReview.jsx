@@ -63,11 +63,11 @@ function MockPage({ rows, selected }) {
                    width: `${row.bbox.w * 100}%`,
                    height: `${row.bbox.h * 100}%`,
                  }}>
-              <span className="text-[11px] flex-1 truncate">{row.party_name_raw}</span>
-              <span className="text-[10px] opacity-70 tnum">
+              <span className="text-chip flex-1 truncate">{row.party_name_raw}</span>
+              <span className="text-micro opacity-70 tnum">
                 {String(row.date ?? "").slice(8)}
               </span>
-              <span className="text-[11px] tnum">{Math.round(row.amount)}</span>
+              <span className="text-chip tnum">{Math.round(row.amount)}</span>
             </div>
           );
         })}

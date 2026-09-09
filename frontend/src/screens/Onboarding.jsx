@@ -235,7 +235,7 @@ export function LockScreen({ shopName, shopNameTa, onUnlocked }) {
     <div className="min-h-screen flex flex-col justify-between px-gutter pt-16 pb-8">
       <div className="text-center animate-rise">
         <div className="w-[52px] h-[52px] rounded-full bg-ink mx-auto mb-4
-                        flex items-center justify-center text-white text-[22px]">
+                        flex items-center justify-center text-white text-tile">
           ₹
         </div>
         {/* His shop's name, not the product's. He should recognise his own

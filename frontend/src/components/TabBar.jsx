@@ -22,7 +22,7 @@ export function TabBar({ badge = 0 }) {
               `flex-1 flex flex-col items-center gap-1 pb-1 min-h-[48px]
                ${isActive ? "text-ink" : "text-text-3"}`}
           >
-            <span className="relative text-[17px] leading-none">
+            <span className="relative text-supplier leading-none">
               {tab.icon}
               {tab.label === "Approvals" && badge > 0 && (
                 <span className="absolute -top-1.5 -right-3 min-w-[16px] h-[16px] px-1

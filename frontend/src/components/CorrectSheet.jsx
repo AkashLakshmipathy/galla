@@ -23,7 +23,7 @@ function Keypad({ value, onChange }) {
     <div className="grid grid-cols-3 gap-2 mt-4">
       {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"].map((key) => (
         <button key={key} type="button" onClick={() => press(key)}
-                className={`h-[58px] rounded-input text-[22px] font-semibold
+                className={`h-[58px] rounded-input text-tile font-semibold
                   active:opacity-70 ${key === "⌫" ? "bg-fill-2" : "bg-card"}`}>
           {key}
         </button>

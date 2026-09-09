@@ -49,7 +49,7 @@ export function VoiceBubble({ name, tier, source, mediaPath, transcript, gloss }
           className="w-[34px] h-[34px] rounded-full bg-accent text-white shrink-0
                      flex items-center justify-center disabled:bg-chevron"
         >
-          <span className="text-[13px] leading-none">{playing ? "❚❚" : "▶"}</span>
+          <span className="text-row leading-none">{playing ? "❚❚" : "▶"}</span>
         </button>
         <div className="flex-1 flex items-center gap-[3px] h-[26px]">
           {Array.from({ length: 34 }).map((_, index) => (

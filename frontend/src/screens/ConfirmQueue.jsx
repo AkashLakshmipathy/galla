@@ -93,7 +93,7 @@ export function ConfirmQueue({ onToast }) {
         {done && (
           <Card className="p-11 text-center animate-rise">
             <div className="w-[52px] h-[52px] rounded-full bg-green-tint mx-auto mb-4
-                            flex items-center justify-center text-green text-[22px]">
+                            flex items-center justify-center text-green text-tile">
               ✓
             </div>
             <div className="text-tile font-bold">Queue cleared</div>
