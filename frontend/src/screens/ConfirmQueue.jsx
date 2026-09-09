@@ -103,7 +103,7 @@ export function ConfirmQueue({ onToast }) {
                 : "Nothing needs confirming right now."}
             </p>
             <div className="mt-5">
-              <FatPill onClick={() => navigate(-1)}>Back to approvals</FatPill>
+              <FatPill onClick={() => navigate(-1)}>Back</FatPill>
             </div>
           </Card>
         )}
@@ -113,7 +113,7 @@ export function ConfirmQueue({ onToast }) {
             <Card className="p-cardpad">
               <div className="text-meta text-text-3 mb-3">
                 {item.source_type === "khata"
-                  ? `From khata ${item.source_id} · row ${item.row_id}`
+                  ? `From ${item.source_label || "a khata page"} · row ${item.row_id}`
                   : `From supplier bill ${item.source_id} · line ${Number(item.row_id) + 1}`}
               </div>
               <SourceCrop path={item.source_image_path} bbox={item.crop_bbox} />

@@ -14,7 +14,13 @@ export async function shareDocument({ path, title, text }) {
       await navigator.share({ title, text: text ?? title, url });
       return true;
     }
-    window.open(url, "_blank", "noopener");
+    // `window.open` returns null when a popup blocker eats it, which is the
+    // default on desktop for a click the browser did not consider trusted. We
+    // used to return true anyway, so the owner — or a judge on a laptop —
+    // tapped Share and got nothing at all: no window, no error, no clue. Same
+    // tab always works, and a document he can see beats a tab he cannot.
+    const opened = window.open(url, "_blank", "noopener");
+    if (!opened) window.location.href = url;
     return true;
   } catch {
     // A dismissed share sheet rejects. The owner changed his mind; that is

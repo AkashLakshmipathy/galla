@@ -132,8 +132,20 @@ def confirm_queue():
     items = [serialize.jsonable(i) for i in
              _docs("confirm_queue", "created_at", desc=False, limit=100)
              if i.get("status") == "pending"]
+    # The item stores the import id, and the screen was showing it: "From khata
+    # imp_15 · row r3". That is our filing reference, not a fact about anyone's
+    # customer. Resolve it to the name on the page — one read per distinct
+    # source, not per row, since a page usually contributes several.
+    names: dict[str, str] = {}
     for item in items:
         item["source_image_path"] = storage.http_path(item.get("source_image_url"))
+        source_id = item.get("source_id")
+        if item.get("source_type") == "khata" and source_id:
+            if source_id not in names:
+                record = db().collection("khata_imports").document(
+                    source_id).get().to_dict() or {}
+                names[source_id] = record.get("party_name_raw") or ""
+            item["source_label"] = names[source_id]
     return {"items": items, "count": len(items)}
 
 
