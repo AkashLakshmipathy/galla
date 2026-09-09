@@ -29,6 +29,8 @@ export function InvoiceReview({ onToast }) {
   if (!purchase) return <Processing />;
 
   const applied = purchase.stock_applied;
+  const nameOf = (skuId) =>
+    (purchase.lines ?? []).find((l) => l.sku_id === skuId)?.name || skuId;
   const lines = purchase.lines ?? [];
 
   /** The amber chip's first tap applies the agent's own best match — which is
@@ -146,9 +148,14 @@ export function InvoiceReview({ onToast }) {
             <div className="text-meta font-semibold text-text-3 uppercase tracking-wide mb-2">
               Stock updated
             </div>
+            {/* This listed the SKU key — "cem-ramco-53 · 6 → 26" — which is how
+                the database refers to a product, not how the shop does. The
+                lines on this very bill already carry the name. */}
             {purchase.stock_delta.map((delta) => (
               <div key={delta.sku_id} className="flex justify-between text-body py-1">
-                <span className="text-text-2 truncate pr-3">{delta.sku_id}</span>
+                <span className="text-text-2 truncate pr-3">
+                  {nameOf(delta.sku_id)}
+                </span>
                 <span className="tnum font-semibold shrink-0">
                   {delta.before} → {delta.after}
                 </span>

@@ -83,6 +83,7 @@ function MockPage({ rows, selected }) {
 
 export function KhataReview({ onToast }) {
   const { importId } = useParams();
+  const navigate = useNavigate();
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -102,7 +103,6 @@ export function KhataReview({ onToast }) {
   const rows = record.rows ?? [];
   const pending = rows.filter((row) => row.status === "needs_confirm");
   const committed = record.status === "committed";
-  const navigate = useNavigate();
   // Every row on a page belongs to the same account, so one row answers this.
   const isNewParty = rows.some((r) => r.is_new_party);
 
