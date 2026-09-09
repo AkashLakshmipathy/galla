@@ -128,7 +128,14 @@ def main(reset: bool = False):
     c = db()
     if reset and hasattr(c, "reset"):
         c.reset()
-    c.collection("shop").document("main").set(SHOP)
+    # Seeding demo *data* must not overwrite a real shop's registration or its
+    # login. Reseeding to refill the catalogue would otherwise swap the owner's
+    # GSTIN for a fixture's and drop the `auth` block — locking him out of his
+    # own shop from a script whose job was to add products. Existing values win;
+    # the seed only fills what is genuinely missing.
+    existing = c.collection("shop").document("main").get().to_dict() or {}
+    shop = {**SHOP, **{k: v for k, v in existing.items() if v not in (None, "")}}
+    c.collection("shop").document("main").set(shop)
     for p in PARTIES:
         c.collection("parties").document(p["party_id"]).set(p)
     for s in CATALOG:
