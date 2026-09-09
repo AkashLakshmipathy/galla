@@ -83,3 +83,38 @@ def test_verdict_is_serialisable_for_firestore():
     assert data["rule_fired"] == "NEAR_LIMIT"
     assert set(data["inputs"]) == {
         "outstanding", "limit", "days_since_payment", "order_total"}
+
+
+# ------------------------------------------------- the explanation quality gate
+def test_a_sentence_missing_the_limit_is_rejected():
+    """"owes ₹87,400" alone is a number; it is only a warning next to the limit.
+    Smaller models drop the limit under pressure to be brief."""
+    from agents.credit_guardian_agent import _checked
+
+    inputs = {"outstanding": 87400, "limit": 95000}
+    template = "Selvam owes ₹87,400 of his ₹95,000 limit — ask ₹15,000 advance."
+
+    assert _checked("Due to ₹87,400 owed, request ₹15,000 advance.",
+                    template, inputs) == template
+    assert _checked(None, template, inputs) == template
+    assert _checked("", template, inputs) == template
+
+
+def test_a_complete_sentence_from_the_model_is_kept():
+    from agents.credit_guardian_agent import _checked
+
+    inputs = {"outstanding": 87400, "limit": 95000}
+    good = "Selvam owes ₹87,400 against a ₹95,000 limit — collect ₹15,000 first."
+    assert _checked(good, "TEMPLATE", inputs) == good
+
+
+def test_the_gate_runs_on_both_languages(seeded):
+    """The Tamil sentence carries the same figures and gets the same check."""
+    from core.firestore_client import db
+
+    from agents import credit_guardian_agent as cg
+
+    party = db().collection("parties").document("selvam").get().to_dict()
+    verdict, _ = cg.explain(cg.decide(party, 24380), party)
+    for sentence in (verdict.reason, verdict.reason_ta):
+        assert "₹87,400" in sentence and "₹95,000" in sentence

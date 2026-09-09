@@ -152,6 +152,25 @@ def _template(verdict: Verdict, party: dict) -> tuple[str, str]:
     return english, tamil
 
 
+def _checked(sentence: str | None, template: str, inputs: dict) -> str:
+    """Take the model's sentence only if it says what it was told to say.
+
+    The rules decide the money and the model explains the decision — so the
+    rules get to check the explanation too. A verdict that omits the limit is
+    not a credit warning, it is a number floating on its own: "owes ₹87,400" is
+    only alarming next to "of a ₹95,000 limit". Models drop it under pressure
+    to be brief, and a smaller model drops it most of the time.
+
+    Falling back here is not a failure path. The template is honest, bilingual
+    and always complete; the model is an upgrade when it clears this bar and a
+    downgrade when it does not.
+    """
+    if not sentence:
+        return template
+    required = (inr(inputs.get("outstanding", 0)), inr(inputs.get("limit", 0)))
+    return sentence if all(figure in sentence for figure in required) else template
+
+
 def explain(verdict: Verdict, party: dict) -> Verdict:
     """The model phrases the reasoning. Falls back to a bilingual template if
     the call fails — the demo must never show an empty verdict banner."""
@@ -169,8 +188,8 @@ def explain(verdict: Verdict, party: dict) -> Verdict:
         fallback={"reason": english, "reason_ta": tamil},
     )
     data = result.data if isinstance(result.data, dict) else {}
-    verdict.reason = data.get("reason") or english
-    verdict.reason_ta = data.get("reason_ta") or tamil
+    verdict.reason = _checked(data.get("reason"), english, i)
+    verdict.reason_ta = _checked(data.get("reason_ta"), tamil, i)
     verdict.computed_at = datetime.now(timezone.utc)
     return verdict, result
 
