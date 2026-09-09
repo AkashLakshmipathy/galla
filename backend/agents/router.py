@@ -30,6 +30,8 @@ from core.trace import Trace
 log = logging.getLogger("galla.router")
 
 CHAINS = {
+    # What the trace strip draws as idle dots. Unchanged by the orchestrator:
+    # the model picks the order, but these are the steps that can run.
     "sale_order": ["intake", "stock_pricing", "credit_guardian", "quotation",
                    "billing", "notifier"],
     # No notifier on a counter sale: the customer is standing at the counter and
@@ -42,8 +44,26 @@ CHAINS = {
 }
 
 
-def _sale_order(payload: dict, trace: Trace) -> dict:
-    order = intake_agent.run(payload, trace)
+def _existing_order(order_id: str) -> dict | None:
+    return db().collection("orders").document(order_id).get().to_dict()
+
+
+def sale_order_chain(payload: dict, trace: Trace) -> dict:
+    """The deterministic sale chain — fixed order, no model deciding sequence.
+
+    This is what `orchestrator.run` falls back to when no provider is available
+    or the orchestration does not produce a priced order. Same tools, same
+    order; the only thing missing is the model choosing that order.
+
+    Resumable on purpose. The orchestrator may already have read the message
+    before it failed, and re-reading it would spend a second vision call on a
+    photograph we have already understood — and draw a second `intake` dot on
+    the trace strip, which reads on camera as the machine stuttering.
+    """
+    existing = (_existing_order(payload.get("order_id"))
+                if payload.get("order_id") else None)
+    order = existing if existing and existing.get("lines") \
+        else intake_agent.run(payload, trace)
     order = stock_pricing_agent.run(order, trace)
 
     # If nothing in the message resolved to a product, there is no order here to
@@ -108,7 +128,10 @@ def handle(event_type: str, payload: dict) -> dict:
     trace = Trace(event_type)
     try:
         if event_type == "sale_order":
-            return _sale_order(payload, trace)
+            # The Strands orchestrator sequences the specialists; it falls back
+            # to `sale_order_chain` on its own if the model is unavailable.
+            from agents import orchestrator
+            return orchestrator.run(payload, trace)
         if event_type == "purchase_inv":
             result = purchase_entry_agent.run(payload, trace)
             notifier_agent.run({"kind": "approval_card", "purchase": result}, trace)
