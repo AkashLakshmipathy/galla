@@ -17,6 +17,17 @@ and compiling monthly GST summaries unattended.
 
 ---
 
+## Try it
+
+**https://galla-tosijyjgva-el.a.run.app** · passcode **`2026`**
+
+The shop is gated behind a four-digit passcode because a shop's ledger is its
+customers' financial history and should not be readable by anyone who happens to
+have the URL. The demo shop's code is above; enter it on the lock screen.
+
+Seeded with eight customers, five SKUs and real handwritten khata pages waiting
+to be posted.
+
 ## Run it in two minutes, with no Google Cloud account
 
 The whole agent fleet runs locally against a JSON store and deterministic model

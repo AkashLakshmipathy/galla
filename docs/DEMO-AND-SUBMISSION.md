@@ -38,9 +38,12 @@ defensible claim and it is a strong one.
 - [x] README, setup verified from a clean clone
 - [x] Architecture diagram — Strands orchestration on Cloud Run
 - [x] **Live demo URL** — https://galla-tosijyjgva-el.a.run.app
-- [ ] **Passcode in the submission text** — the app is gated and the rules
+- [x] **Passcode in the submission text** — the app is gated and the rules
       require judges to reach it without restriction; a private site is allowed
-      *provided the credentials are supplied*
+      *provided the credentials are supplied*. Paste this into Devpost verbatim:
+
+      > Live demo: https://galla-tosijyjgva-el.a.run.app
+      > Passcode: 2026
 - [ ] Video ≤ 5 min, states problem / who / why
 - [x] AWS Builder ID linked — @akashlp
 - [ ] Text description: what it does, who it is for, how it works, roadmap
