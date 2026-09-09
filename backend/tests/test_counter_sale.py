@@ -185,3 +185,14 @@ def test_a_single_letter_is_not_a_search(client, seeded):
 def test_a_single_digit_still_searches(client, seeded):
     """"3" is a real query in a shop that stocks 3/4 pipe and 53-grade cement."""
     assert client.get("/api/catalog/search", params={"q": "3"}).json()["results"]
+
+
+def test_the_cash_bucket_is_not_a_debtor(client, seeded):
+    """Walk-in is where cash sales are booked, so it is square by construction —
+    a debit and a receipt in the same transaction. A name sitting at zero in a
+    list headed "who owes you" is someone the owner reads and dismisses every
+    time he opens the book."""
+    _sale(client)  # walk-in now has history, still owes nothing
+    names = [p["name"] for p in client.get("/api/credit").json()["parties"]]
+    assert "Walk-in customer" not in names
+    assert "Selvam" in names, "real debtors must still be listed"

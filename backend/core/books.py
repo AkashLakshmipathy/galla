@@ -34,12 +34,24 @@ def period_key(date_value, granularity: str) -> str:
 
 def parties_of(kind: str) -> dict[str, dict]:
     """Live parties on one side of the book. Merged-away profiles are excluded;
-    their history reaches the survivor through `merge.resolve`."""
+    their history reaches the survivor through `merge.resolve`.
+
+    The walk-in bucket is excluded too. It is where cash sales are booked, so it
+    is always square by construction — a debit and a receipt in the same
+    transaction — and a name sitting at zero in a list headed "who owes you" is
+    a person the owner has to read and dismiss every time he opens the book. It
+    is identified by having no credit line at all: you cannot owe on a line that
+    was never extended.
+    """
     wanted = CUSTOMER_TYPES if kind == "customer" else SUPPLIER_TYPES
     out = {}
     for snap in db().collection("parties").stream():
         party = snap.to_dict() or {}
         if party.get("merged_into"):
+            continue
+        credit = party.get("credit") or {}
+        if kind == "customer" and not int(credit.get("limit") or 0) \
+                and not int(credit.get("outstanding") or 0):
             continue
         if (party.get("type") or "customer") in wanted:
             out[snap.id] = party

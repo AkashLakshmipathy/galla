@@ -26,7 +26,10 @@ export function Purchases() {
     <div className="px-gutter pt-2 space-y-5">
       <h1 className="text-screen font-bold pt-1">Purchases</h1>
 
-      {!loading && (totals?.suppliers ?? 0) === 0 && (
+      {/* Keyed on bills, not suppliers. The seed opens a supplier record before
+          a single bill is photographed, so keying on suppliers rendered a page
+          of zeros where the empty state belonged. */}
+      {!loading && (totals?.bills ?? 0) === 0 && (
         <EmptyState
           icon="⌾"
           title="No bills yet"
@@ -35,7 +38,7 @@ export function Purchases() {
         />
       )}
 
-      {(totals?.suppliers ?? 0) > 0 && (
+      {(totals?.bills ?? 0) > 0 && (
         <>
           <Card className="p-cardpad">
             <div className="text-meta text-text-2">Owed to suppliers</div>
