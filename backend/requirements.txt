@@ -1,6 +1,9 @@
-strands-agents>=1.54.0
+# The litellm extra is not optional for us: core/model.py reaches Vertex through
+# strands.models.litellm, and without it the import fails at runtime, model()
+# returns None and every agent silently runs its deterministic fallback — a
+# container that builds clean and does no AI at all.
+strands-agents[litellm]>=1.54.0
 strands-agents-tools>=0.8.8
-google-genai>=0.3.0
 google-cloud-firestore>=2.16.0
 google-cloud-storage>=2.16.0
 google-cloud-pubsub>=2.21.0

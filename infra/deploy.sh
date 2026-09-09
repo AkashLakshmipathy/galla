@@ -6,7 +6,13 @@
 # the agent fleet asynchronous rather than request-scoped.
 set -euo pipefail
 
-PROJECT="${GOOGLE_CLOUD_PROJECT:-galla-hackathon}"
+# No placeholder default. "galla-hackathon" was one, and Vertex answers a wrong
+# project with a 403 that reads like a permissions problem — an afternoon lost.
+PROJECT="${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null)}"
+if [ -z "$PROJECT" ] || [ "$PROJECT" = "(unset)" ]; then
+  echo "Set GOOGLE_CLOUD_PROJECT, or: gcloud config set project <id>" >&2
+  exit 1
+fi
 REGION="${GOOGLE_CLOUD_LOCATION:-asia-south1}"
 SVC="galla"
 TOPIC="${PUBSUB_TOPIC:-shop-events}"
@@ -14,6 +20,10 @@ BUCKET="${GCS_BUCKET:-galla-media}"
 SA="galla-agents"
 MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
 MODEL_FAST="${GEMINI_MODEL_FAST:-gemini-3.5-flash-lite}"
+# Vertex, not an AI Studio key: the service account below already carries
+# credentials, so nothing secret is injected and the project's own quota and
+# credits apply instead of a free tier's.
+PROVIDER="${GALLA_MODEL_PROVIDER:-vertex}"
 # Data lives in $REGION; inference goes wherever the models are actually served.
 # asia-south1 serves gemini-3.5-flash but not flash-lite — `global` serves both.
 VERTEX_LOC="${VERTEX_LOCATION:-global}"
@@ -50,7 +60,7 @@ gcloud run deploy "$SVC" --source . --region "$REGION" \
   --service-account "$SA_EMAIL" \
   --allow-unauthenticated --min-instances=0 --max-instances=3 \
   --memory=1Gi --cpu=1 --timeout=300 \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=$REGION,GCS_BUCKET=$BUCKET,PUBSUB_TOPIC=$TOPIC,GEMINI_MODEL=$MODEL,GEMINI_MODEL_FAST=$MODEL_FAST,VERTEX_LOCATION=$VERTEX_LOC,GOOGLE_GENAI_USE_VERTEXAI=true,GALLA_STORE=firestore,DEMO_MODE=true"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=$REGION,GCS_BUCKET=$BUCKET,PUBSUB_TOPIC=$TOPIC,GEMINI_MODEL=$MODEL,GEMINI_MODEL_FAST=$MODEL_FAST,VERTEX_LOCATION=$VERTEX_LOC,GALLA_MODEL_PROVIDER=$PROVIDER,GALLA_STORE=firestore,DEMO_MODE=true"
 
 URL=$(gcloud run services describe "$SVC" --region "$REGION" --format='value(status.url)')
 echo "→ service: $URL"
