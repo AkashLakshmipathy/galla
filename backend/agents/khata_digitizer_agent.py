@@ -312,7 +312,15 @@ def run(payload: dict, trace) -> dict:
                     row["status"] = "auto_accepted"
         record = {
             "import_id": import_id,
-            "party_name_raw": extraction.get("party_name_raw"),
+            # The page-level name is what the review screen puts at the top,
+            # so fall back to the rows when the extraction did not give one.
+            # A page is one customer's account, so any row answers it — and the
+            # demo fixture predates the page-level field entirely, which would
+            # otherwise put "Not read" on screen the moment a model call fails.
+            "party_name_raw": (extraction.get("party_name_raw")
+                               or next((r.get("party_name_raw")
+                                        for r in (extraction.get("rows") or [])
+                                        if r.get("party_name_raw")), None)),
             "opening_balance": extraction.get("opening_balance"),
             "closing_balance": extraction.get("closing_balance"),
             "arithmetic": check,
