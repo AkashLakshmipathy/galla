@@ -44,7 +44,7 @@ Run the tests — they assert the demo's actual numbers, so a change that breaks
 video breaks here first:
 
 ```bash
-cd backend && GALLA_STORE=local ../.venv/bin/python -m pytest      # 55 tests
+cd backend && GALLA_STORE=local ../.venv/bin/python -m pytest      # 224 tests
 ```
 
 ### What "local mode" does and does not fake
@@ -56,7 +56,7 @@ cd backend && GALLA_STORE=local ../.venv/bin/python -m pytest      # 55 tests
 | Transactions, idempotence guards | real | real |
 | Firestore | JSON files under `backend/.localdata` | Firestore, `asia-south1` |
 | Pub/Sub | a worker thread | Pub/Sub push subscription |
-| Gemini perception | fixture transcriptions in `backend/seed/fixtures/` | Gemini via Vertex AI |
+| Model perception | fixture transcriptions in `backend/seed/fixtures/` | Gemini on Vertex AI |
 
 `GALLA_STORE` is auto-detected: with application-default credentials present it uses
 Firestore, otherwise it falls back to local. Nothing in `agents/` branches on it.
@@ -82,7 +82,7 @@ the Firestore rules, and firing the scheduler once so it has an execution in its
 > daemon was available on the build machine — so budget a first `docker build .` before
 > relying on `deploy.sh`.
 
-Cost posture: `--min-instances=0`, Gemini **Flash** rather than Pro, and a short-TTL
+Cost posture: `--min-instances=0`, **Flash** rather than Pro, and a short-TTL
 in-process catalog cache instead of per-line Firestore queries.
 
 ---
@@ -99,7 +99,7 @@ in-process catalog cache instead of per-line Firestore queries.
 
 ## The four decisions worth defending
 
-**The LLM never decides money.** Gemini extracts and it explains. Every credit verdict
+**The model never decides money.** It extracts and it explains. Every credit verdict
 comes from deterministic rules in `agents/credit_guardian_agent.py::decide` — a pure
 function with no I/O, unit-tested against all three outcomes — and `rule_fired` is
 persisted on the verdict, so any decision can be reproduced and explained months later.
@@ -132,13 +132,13 @@ only be *partly* proven without a Google Cloud project, so here is the honest sp
 | Integration | State |
 |---|---|
 | Strands Agents SDK — `Agent`, `@tool`, multimodal content blocks | **Working.** A Strands agent answers through `core/model.py` and calls its tools; verified end to end against a live endpoint with token counts recorded on the trace. |
-| Model provider — Bedrock or Gemini | **Both wired, one env var apart** (`GALLA_MODEL_PROVIDER`). Extraction runs on the cheap tier, the Credit Guardian's sentence on the standard one; real token counts land in `agent_traces`. |
+| Model provider | **Four, one env var apart** (`GALLA_MODEL_PROVIDER`): `vertex` (Gemini on Vertex AI — the deployed default), `litellm` (Gemini via an AI Studio key), `bedrock`, and `none` for the deterministic path. Extraction runs on the cheap tier, the Credit Guardian's sentence on the standard one; real token counts land in `agent_traces`. |
 | Firestore | **Working in production**, `asia-south1`. Also contract-tested against the real client offline (`tests/test_firestore_contract.py`). |
 | Firestore transactions | Real semantics: `core/localstore.py` deliberately does **not** offer read-your-writes, because Firestore does not. That faithfulness caught a lost-stock bug on duplicated invoice lines. |
 | Cloud Run · Pub/Sub · Cloud Scheduler · Cloud Storage | **Working in production.** Event in → push subscription → agent chain → verdict; Scheduler produced a GST register unattended; quotation PDF written to `gs://galla-media`. |
 | Firestore rules | **Published** to `cloud.firestore`. |
 | Owner authentication | **A shop passcode**, PBKDF2-hashed with a per-shop salt, HMAC-signed session tokens, rate-limited. Every `/api` route is gated. Firebase Auth on a phone number is the stronger successor. |
-| Gemini vision | **Working in production.** A photographed GST invoice returns supplier, GSTIN, invoice number, every line, and the right tax slab per line. |
+| Vision | **Working in production.** A photographed GST invoice returns supplier, GSTIN, invoice number, every line, and the right tax slab per line. |
 
 ### Running a real shop on it
 
@@ -163,7 +163,7 @@ passcode *and* the word ERASE, because there is no undo.
 entirely. So the rules are correct and currently unused, and the API is open.
 
 `/pubsub/push` and `/jobs/gst-compile` could otherwise be used to inject a fake
-sale or burn Gemini credits, so both verify the OIDC token Google signs them
+sale or burn model credits, so both verify the OIDC token Google signs them
 with. `REQUIRE_OIDC=true` is **enabled on the deployed service** and both paths
 were re-tested end to end afterwards: an unauthenticated call gets 403, while
 Pub/Sub and Cloud Scheduler still get through.
@@ -186,7 +186,8 @@ backend/
                      transactions · catalog · stock · tax
                      money · serialize · storage · localstore · config
   seed/              seed_data.py + fixtures/ (the demo's known-good perceptions)
-  tests/             55 tests: credit rules, money, transactions, intake, full chain,
+  tests/             224 tests: credit rules, tax engine, billing, counter sale,
+                     transactions, intake, provider switch, full chain,
                      and a real-Firestore API contract suite
 frontend/            React + Vite + Tailwind PWA, 390px mobile-first
 infra/               deploy.sh · firestore.indexes.json · firestore.rules
@@ -201,7 +202,7 @@ design/              DESIGN-TOKENS.md + prototype reference
 |---|---|---|
 | `intake` | yes | Tamil/Tanglish speech and handwriting → line items; SKUs resolved in-process by fuzzy alias match |
 | `stock_pricing` | **no** | Inventory truth and the party's price tier. Facts, not inference. |
-| `credit_guardian` | phrasing only | Deterministic verdict; Gemini writes the sentence in English and Tamil |
+| `credit_guardian` | phrasing only | Deterministic verdict; the model writes the sentence in English and Tamil, and it is used only if it carries the figures it was given |
 | `quotation` | **no** | GST quotation PDF — HSN, CGST/SGST split, amount in words |
 | `purchase_entry` | yes | Supplier invoice OCR → editable table, stock delta, supplier payable |
 | `khata_digitizer` | yes | Handwritten ledger page → rows with a bbox per row |
@@ -213,7 +214,7 @@ Galla produces a **CA-ready summary**. It does not file your GST.
 ## Submission checklist
 
 - [x] Strands Agents SDK throughout; a live agent call verified end to end with tools
-- [x] Model provider swappable by one env var (Bedrock / Gemini), each with a deterministic fallback
+- [x] Model provider swappable by one env var (Vertex / AI Studio / Bedrock), each with a deterministic fallback
 - [x] All three credit verdict states reachable from seeded data (`kumar` green · `selvam` amber · `ravi` red)
 - [x] Invoice and khata extraction with confidence gating and tap-to-trace
 - [x] `agent_traces` documents readable in the Firestore console
