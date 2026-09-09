@@ -139,7 +139,12 @@ function ThreadItem({ item, chains }) {
                 <span className="text-body font-semibold truncate">{title}</span>
               </div>
               <div className="text-body font-semibold tnum mt-0.5">{line}</div>
-              <div className="text-meta text-text-3">{state}</div>
+              {/* When it happened. The feed showed a time only while an agent
+                  was still working, so a finished counter was four cards with
+                  no way to tell this morning's bill from last Tuesday's. */}
+              <div className="text-meta text-text-3">
+                {state}{item.at ? ` · ${ago(item.at)}` : ""}
+              </div>
             </div>
             <Chevron />
           </button>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { BackBar } from "../components/BackBar.jsx";
 import { Processing } from "../components/Processing.jsx";
 import { TraceRelay } from "../components/TraceRelay.jsx";
@@ -102,6 +102,7 @@ export function KhataReview({ onToast }) {
   const rows = record.rows ?? [];
   const pending = rows.filter((row) => row.status === "needs_confirm");
   const committed = record.status === "committed";
+  const navigate = useNavigate();
   // Every row on a page belongs to the same account, so one row answers this.
   const isNewParty = rows.some((r) => r.is_new_party);
 
@@ -231,12 +232,21 @@ export function KhataReview({ onToast }) {
                   opened
                 </p>
               )}
-              <FatPill onClick={commit} disabled={busy || pending.length > 0}>
-                {busy ? "Posting…"
-                  : pending.length > 0
-                    ? `Clear ${pending.length} in the confirm queue first`
-                    : `Post ${rows.length} entries to the ledger`}
-              </FatPill>
+              {/* This used to be a dead end: a disabled button telling the
+                  owner to go to the confirm queue, on a screen with no way to
+                  get there. The only link lived on Approvals, so the answer to
+                  "clear them first" was to go back and hunt. If we are going to
+                  send him somewhere, send him. */}
+              {pending.length > 0 && !busy ? (
+                <FatPill onClick={() => navigate("/queue")}>
+                  Confirm {pending.length} row{pending.length === 1 ? "" : "s"} first
+                </FatPill>
+              ) : (
+                <FatPill onClick={commit} disabled={busy}>
+                  {busy ? "Posting…"
+                        : `Post ${rows.length} entries to the ledger`}
+                </FatPill>
+              )}
               {pending.length > 0 && (
                 <p className="text-micro text-text-3 text-center pt-1">
                   {pending.length} rows are below the shop's confidence threshold —
