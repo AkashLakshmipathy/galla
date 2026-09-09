@@ -29,7 +29,7 @@ from fastapi.staticfiles import StaticFiles
 
 from agents import router as agent_router
 from api import actions, demo, reads, setup
-from core import auth, authz, ids
+from core import auth, authz, ids, model
 from core.config import DEMO_MODE, LOCAL_STORE, PROJECT, PUBSUB_TOPIC, STORE
 
 logging.basicConfig(level=logging.INFO)
@@ -105,7 +105,12 @@ def healthz():
     """Both paths, because Google's frontend swallows a bare `/healthz` on Cloud
     Run — it returns its own 404 and the request never reaches the container.
     Anything under `/api/` routes through untouched."""
-    return {"ok": True, "store": STORE}
+    # The model provider is on the open endpoint on purpose. "It deployed" and
+    # "it is actually running a model" are different claims, and the difference
+    # is invisible: every agent has a deterministic fallback, so a service with
+    # no provider serves confident-looking output and calls nothing. This is the
+    # one field that tells a judge — or us — which of the two is true.
+    return {"ok": True, "store": STORE, "model": model.describe()}
 
 
 def queue_event(event_type: str, payload: dict) -> dict:
