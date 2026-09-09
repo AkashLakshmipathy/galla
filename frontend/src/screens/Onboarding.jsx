@@ -273,6 +273,16 @@ export function LockScreen({ shopName, shopNameTa, onUnlocked }) {
           </button>
         ))}
       </div>
+
+      {/* Setup says "there is no reset" once, on a screen the owner sees for
+          thirty seconds a year ago. This is where he needs to know it: he
+          cannot sign in, and starting over asks for the same passcode he has
+          lost. Better he learns that from us, standing at his counter, than by
+          trying every four-digit number he can think of. */}
+      <p className="text-micro text-text-3 text-center mt-6 leading-relaxed">
+        Forgotten it? There is no reset — the passcode is not stored anywhere,
+        not even here. Ask whoever set the shop up.
+      </p>
     </div>
   );
 }
