@@ -310,6 +310,14 @@ def run(payload: dict, trace) -> dict:
                 if row["status"] == "needs_confirm" and (
                         row.get("party_id") or row.get("new_party")):
                     row["status"] = "auto_accepted"
+        # One resolved name, used by the record, the trace step and the
+        # notifier alike — they were disagreeing, with the strip saying "Page"
+        # while the message said the customer's name, off the same import.
+        page_name = (extraction.get("party_name_raw")
+                     or next((r.get("party_name_raw")
+                              for r in (extraction.get("rows") or [])
+                              if r.get("party_name_raw")), None)
+                     or "Page")
         record = {
             "import_id": import_id,
             # The page-level name is what the review screen puts at the top,
@@ -317,10 +325,7 @@ def run(payload: dict, trace) -> dict:
             # A page is one customer's account, so any row answers it — and the
             # demo fixture predates the page-level field entirely, which would
             # otherwise put "Not read" on screen the moment a model call fails.
-            "party_name_raw": (extraction.get("party_name_raw")
-                               or next((r.get("party_name_raw")
-                                        for r in (extraction.get("rows") or [])
-                                        if r.get("party_name_raw")), None)),
+            "party_name_raw": None if page_name == "Page" else page_name,
             "opening_balance": extraction.get("opening_balance"),
             "closing_balance": extraction.get("closing_balance"),
             "arithmetic": check,
@@ -347,14 +352,14 @@ def run(payload: dict, trace) -> dict:
             # The page's own totals disagree with what we read. Something is
             # missing or misread; none of it should be trusted on sight.
             s.status = "flagged"
-            s.summary = (f"{extraction.get('party_name_raw') or 'Page'} — the "
+            s.summary = (f"{page_name} — the "
                          f"figures do not add up: the page closes at "
                          f"{inr(check['closing'])} but these entries make "
                          f"{inr(check['expected_closing'])}. Check it before posting.")
         else:
             s.status = "flagged" if pending else "done"
             tail = " · totals agree ✓" if check.get("balances") else ""
-            s.summary = (f"{extraction.get('party_name_raw') or 'Page'} — "
+            s.summary = (f"{page_name} — "
                          f"{len(rows)} entries, {accepted} clear, "
                          f"{pending} to confirm"
                          + (f", {new_parties} new account(s)" if new_parties else "")
