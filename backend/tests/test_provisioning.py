@@ -344,13 +344,13 @@ def test_the_model_is_only_consulted_in_the_ambiguous_band(seeded, monkeypatch):
 def test_the_model_can_settle_an_ambiguous_line(seeded, monkeypatch):
     monkeypatch.setattr(provisioning, "_model_decides",
                         lambda d, c: ("plm-gi-075", 0.95))
-    r = provisioning.resolve_sku({"description_raw": 'G.I.PIPE 3/4" HVY 6MTR TATA'})
+    r = provisioning.resolve_sku({"description_raw": "GI PIPE 3/4 HEAVY"})
     assert r.action == provisioning.USE and r.existing_id == "plm-gi-075"
 
 
 def test_an_unsure_model_leaves_the_decision_to_the_owner(seeded, monkeypatch):
     monkeypatch.setattr(provisioning, "_model_decides", lambda d, c: (None, 0.0))
-    r = provisioning.resolve_sku({"description_raw": 'G.I.PIPE 3/4" HVY 6MTR TATA'})
+    r = provisioning.resolve_sku({"description_raw": "GI PIPE 3/4 HEAVY"})
     assert r.action == provisioning.ASK
     assert not r.creates
 

@@ -99,9 +99,22 @@ def normalise(text: str) -> str:
     text = text.replace(".", " ")
     text = re.sub(r"(?<=\d)(?=[a-z])|(?<=[a-z])(?=\d)", " ", text)
 
-    tokens = [t for t in text.split()
-              if t and t not in _NOISE and t not in _QTY_WORDS
-              and not re.fullmatch(r"\d+(\.\d+)?", t)]
+    # A bare number is usually a quantity and must not dilute matching — but a
+    # number in front of a measure word is the product itself. Dropping those
+    # made `1" pipe` normalise to the same thing as `pipe`, so a one-inch length
+    # matched the three-quarter-inch SKU at 0.88 and went into its stock. It
+    # also threw away the grade in "53 grade cement". `parse_qty` already draws
+    # this distinction; matching has to draw it too.
+    raw = text.split()
+    tokens = []
+    for index, token in enumerate(raw):
+        if not token or token in _NOISE or token in _QTY_WORDS:
+            continue
+        if re.fullmatch(r"\d+(\.\d+)?", token):
+            following = raw[index + 1] if index + 1 < len(raw) else ""
+            if following.strip(".,") not in _MEASURE_SUFFIX:
+                continue
+        tokens.append(token)
 
     # Rejoin what was a dotted acronym before the split above.
     folded: list[str] = []

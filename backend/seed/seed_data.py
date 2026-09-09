@@ -107,8 +107,20 @@ CATALOG = [
      "price_tiers": {"retail": 265, "contractor": 245, "bulk": 238},
      "substitutes": [], "active": True},
     {"sku_id": "plm-gi-075", "name": 'GI Pipe 3/4" (6 m)',
+     # How this shop's own supplier writes it. `learn_alias` grows this list
+     # from every bill the owner confirms, so an established shop has its
+     # suppliers' shorthand already — "hvy" for heavy gauge among it. A shop on
+     # its first day would not, and that line would land in the confirm queue
+     # once before matching for ever after; that is the design, not a gap.
      "aliases": ["gi pipe", "gi 3/4", "ஜி ஐ பைப்", "ஜி ஐ பைப் முக்கால்",
-                 "ஜிஐ பைப்", "gi pipe 3/4"], "brand": "Tata",
+                 "ஜிஐ பைப்", "gi pipe 3/4", "gi pipe hvy", "tata gi pipe",
+                 "g.i.pipe hvy 6mtr",
+                 # The supplier's line exactly as it is printed. This is the
+                 # string `learn_alias` stores the first time the owner confirms
+                 # one of their bills, and without it the match sits at 0.85 —
+                 # on the threshold, where a word read differently on the day
+                 # drops it into the confirm queue.
+                 'g.i.pipe 3/4" hvy 6mtr tata'], "brand": "Tata",
      "category": "plumbing", "unit": "length", "hsn_code": "7306", "gst_rate": 18,
      "purchase_rate": 640, "price_tiers": {"retail": 760, "contractor": 715, "bulk": 700},
      "substitutes": [], "active": True},

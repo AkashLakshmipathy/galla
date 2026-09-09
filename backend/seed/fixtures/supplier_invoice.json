@@ -38,6 +38,13 @@
       "rate": 46,
       "gst_rate": 18,
       "confidence": 0.94
+    },
+    {
+      "description_raw": "G.I.PIPE 1\" HVY 6MTR TATA",
+      "qty": 8,
+      "rate": 980,
+      "gst_rate": 18,
+      "confidence": 0.93
     }
   ]
 }

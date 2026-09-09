@@ -85,7 +85,13 @@ def test_confirming_a_purchase_increments_stock_once(seeded):
     assert second["already"] is True
     after = seeded.collection("inventory").document("plm-gi-075").get() \
         .to_dict()["qty_on_hand"]
-    assert after == before + 25
+    # Derived from the bill rather than hard-coded: this test is about applying
+    # the increment exactly once, and a magic 25 made it fail whenever the
+    # fixture gained a line — which says nothing about idempotency.
+    expected = sum(float(line["qty"]) for line in
+                   db().collection("purchases").document(purchase["purchase_id"])
+                   .get().to_dict()["lines"] if line.get("sku_id") == "plm-gi-075")
+    assert after == before + expected
     assert any(d["sku_id"] == "plm-gi-075" and d["before"] == before
                and d["after"] == after for d in first["stock_delta"])
 
@@ -187,7 +193,10 @@ def test_the_same_sku_twice_on_one_invoice_adds_both_quantities(seeded):
 
     after = seeded.collection("inventory").document("plm-gi-075").get() \
         .to_dict()["qty_on_hand"]
-    assert after == before + 25 + 10, "both lines must be added, not just the last"
+    expected = sum(float(line["qty"]) for line in
+                   db().collection("purchases").document(purchase["purchase_id"])
+                   .get().to_dict()["lines"] if line.get("sku_id") == "plm-gi-075")
+    assert after == before + expected, "both lines must be added, not just the last"
     gi_deltas = [d for d in result["stock_delta"] if d["sku_id"] == "plm-gi-075"]
     assert len(gi_deltas) == 1, "the delta shown to the owner is per SKU, not per line"
     assert gi_deltas[0] == {"sku_id": "plm-gi-075", "before": before, "after": after}

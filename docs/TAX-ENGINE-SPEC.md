@@ -111,13 +111,13 @@ Format: **`SBH/26-27/0042`**
 - Max 16 characters
 - Never gaps, never duplicates
 
-Implementation: `counters` table, key `counter_id = "invoice#26-27"`, incremented with an atomic DynamoDB `UpdateItem ... ADD seq :one` and `ReturnValues: UPDATED_NEW`. **Never read-then-write.**
+Implementation: `counters` collection, document `invoice#26-27`, incremented inside a Firestore transaction (`core/ids.py::next_invoice_number`). **Never read-then-write** — two counter sales in the same second must not be handed the same number.
 
 Quotations use a separate counter (`quote#26-27`) and have no ledger effect until approved.
 
 ## 8. Tax invoice PDF
 
-reportlab, rendered in Lambda, uploaded to S3, returned as a **presigned URL**.
+reportlab, rendered in the Cloud Run service, written to Cloud Storage, served back through `/api/media/...` so the PWA needs no signing credentials.
 
 Must carry:
 - Title **"Tax Invoice"** (or "Quotation" / "Duplicate" as applicable)
@@ -131,7 +131,7 @@ Must carry:
 
 ## 9. Delivery
 
-**The device's native share sheet.** Owner taps Share, picks WhatsApp, sends the presigned link.
+**The device's native share sheet.** Owner taps Share, picks WhatsApp, sends the link.
 
 No WhatsApp Business API (Meta approval), no SNS/SMS (needs DLT registration with TRAI), no SES dependency. Optional SES email if production access arrives — bonus, never a dependency.
 
