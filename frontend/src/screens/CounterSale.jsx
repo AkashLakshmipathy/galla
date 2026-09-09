@@ -264,7 +264,10 @@ export function CounterSale({ onToast }) {
             <SearchResults results={results} onPick={addSku} />
           </div>
 
-          {lines.length === 0 ? (
+          {/* The instructions are for an empty screen. Once he is typing he has
+              results in front of him and does not need telling how to start —
+              leaving the card there just pushes the list he wants off-screen. */}
+          {lines.length === 0 && results.length === 0 ? (
             <EmptyState
               icon="₹"
               title="Ring up a walk-in"
