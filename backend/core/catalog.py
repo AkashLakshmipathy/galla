@@ -302,6 +302,13 @@ def search(query: str, limit: int = 8,
     This is why there is no barcode scanner in this product. Cement, pipe and
     loose hardware carry no barcodes, so the alias list *is* the input method.
     """
+    # One character matches almost everything, and a list of everything is not
+    # a search result — at one letter the owner has not told us anything yet.
+    # Digits are exempt: "3" is a real query in a shop that stocks 3/4 pipe.
+    typed = (query or "").strip()
+    if len(typed) < 2 and not typed.isdigit():
+        return []
+
     rows = catalog if catalog is not None else load()
     needle = normalise(query)
     if not needle:

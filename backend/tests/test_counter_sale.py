@@ -172,3 +172,16 @@ def test_reprinting_appends_to_the_orders_own_trace(client, seeded):
     steps = client.get(f"/api/traces/{again['trace_id']}").json()["steps"]
     assert [s["agent"] for s in steps] == ["billing", "billing"]
     assert "Duplicate" in steps[1]["output_summary"]
+
+
+def test_a_single_letter_is_not_a_search(client, seeded):
+    """One character matches nearly the whole catalogue through the literal
+    pass, and a list of everything is not a result — at one letter the owner
+    has not told us anything yet."""
+    assert client.get("/api/catalog/search", params={"q": "a"}).json()["results"] == []
+    assert client.get("/api/catalog/search", params={"q": "ra"}).json()["results"]
+
+
+def test_a_single_digit_still_searches(client, seeded):
+    """"3" is a real query in a shop that stocks 3/4 pipe and 53-grade cement."""
+    assert client.get("/api/catalog/search", params={"q": "3"}).json()["results"]

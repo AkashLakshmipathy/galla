@@ -102,6 +102,8 @@ export function KhataReview({ onToast }) {
   const rows = record.rows ?? [];
   const pending = rows.filter((row) => row.status === "needs_confirm");
   const committed = record.status === "committed";
+  // Every row on a page belongs to the same account, so one row answers this.
+  const isNewParty = rows.some((r) => r.is_new_party);
 
   const commit = async () => {
     setBusy(true);
@@ -131,6 +133,29 @@ export function KhataReview({ onToast }) {
           <TraceRelay trace={trace} chain={fleet?.chains?.khata_page ?? []} />
         </Card>
 
+        {/* A khata page is one customer's running account, so the name belongs
+            here once — not stamped onto all twelve rows, which turned a page
+            into a wall of the same three lines repeated. It also puts the name
+            where it can be questioned: the model read it off handwriting, and
+            if it read it wrong the owner should see that at the top, before he
+            reads any amount underneath it. */}
+        <Card className="p-cardpad">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-meta text-text-3">Whose account this is</div>
+              <div className="text-tile font-bold truncate mt-0.5">
+                {record.party_name_raw || "Not read"}
+              </div>
+              {isNewParty && (
+                <div className="text-meta text-accent mt-1">
+                  No account yet — posting opens one
+                </div>
+              )}
+            </div>
+            {isNewParty && <NewBadge>New account</NewBadge>}
+          </div>
+        </Card>
+
         <div className="bg-card rounded-card overflow-hidden">
           {rows.map((row) => (
             <div
@@ -141,35 +166,32 @@ export function KhataReview({ onToast }) {
             >
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="text-body font-semibold truncate">
-                    {row.party_name_raw}
+                  <div className="text-body font-semibold tnum">
+                    {ddmmyyyy(row.date)}
                   </div>
-                  {row.is_new_party && (
-                    <div className="text-micro text-accent mt-0.5">
-                      No account yet — posting opens{" "}
-                      {row.is_company ? "a company" : "a personal"} account
-                    </div>
-                  )}
+                  <div className="text-meta text-text-2 mt-0.5">
+                    {row.entry_type === "payment_received"
+                      ? "paid" : "on credit"}
+                    {row.note ? ` · ${row.note}` : ""}
+                  </div>
                   {row.near_miss && (
                     <div className="text-micro text-amber-deep mt-0.5">
                       Might be {row.near_miss.name} — confirm which
                     </div>
                   )}
-                  <div className="text-meta text-text-2 tnum mt-0.5">
-                    {ddmmyyyy(row.date)} ·{" "}
-                    {row.entry_type === "payment_received" ? "paid" : "on credit"}
-                  </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-body font-semibold tnum">{inr(row.amount)}</div>
-                  <div className="mt-1">
-                    {row.is_new_party ? (
-                      <NewBadge>New account</NewBadge>
-                    ) : (
+                  <div className={`text-body font-semibold tnum ${
+                    row.entry_type === "payment_received" ? "text-green" : ""}`}>
+                    {row.entry_type === "payment_received" ? "− " : ""}
+                    {inr(row.amount)}
+                  </div>
+                  {!row.is_new_party && (
+                    <div className="mt-1">
                       <ConfidenceChip value={row.confidence}
                                       corrected={row.status === "confirmed"} />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Any row can be wrong, not only the ones the agent doubted. */}

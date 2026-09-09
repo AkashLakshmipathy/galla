@@ -121,16 +121,6 @@ export function OrderDetail({ onToast }) {
                sub={order.party_name} />
 
       <div className="px-gutter space-y-3.5 pb-40">
-        {!verdict && (
-          <Card className="p-cardpad">
-            <TraceRelay
-              trace={trace}
-              chain={fleet?.chains?.[
-                order.source === "counter" ? "counter_sale" : "sale_order"] ?? []}
-            />
-          </Card>
-        )}
-
         {verdict && (
           <Card className="pt-4">
             <VerdictBlock verdict={verdict} party={order.party} total={order.total} />
@@ -150,7 +140,7 @@ export function OrderDetail({ onToast }) {
         <div>
           <div className="flex items-center justify-between px-1 mb-2">
             <span className="text-meta font-semibold text-text-3 uppercase tracking-wide">
-              {order.lines?.length} items
+              {order.lines?.length} {order.lines?.length === 1 ? "item" : "items"}
             </span>
             {!decided && (
               <button onClick={() => setEditing(true)}
@@ -237,8 +227,15 @@ export function OrderDetail({ onToast }) {
           </Card>
         )}
 
+        {/* One strip per order. There used to be two — one here and one above
+            the lines — and because they picked their chain differently the same
+            order showed six dots in one and one dot in the other. */}
         <Card className="p-cardpad">
-          <TraceRelay trace={trace} chain={fleet?.chains?.sale_order ?? []} />
+          <TraceRelay
+            trace={trace}
+            chain={fleet?.chains?.[
+              order.source === "counter" ? "counter_sale" : "sale_order"] ?? []}
+          />
         </Card>
       </div>
 

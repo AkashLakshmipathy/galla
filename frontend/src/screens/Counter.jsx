@@ -72,10 +72,13 @@ function ThreadItem({ item, chains }) {
 
   const title = kind === "order" ? (data.party_name ?? data.party_id)
     : kind === "purchase" ? (data.supplier_name_raw ?? "Supplier bill")
-      : `Khata page ${data.page_no ?? ""}`;
+      // Whose page it is, not which page it is. Four cards all reading
+      // "Khata page" are impossible to tell apart at the counter, and the page
+      // number is a fact about our filing, not about his customers.
+      : (data.party_name_raw || `Khata page ${data.page_no ?? ""}`);
 
   const line = kind === "order"
-    ? `${data.lines?.length ?? 0} items · ${inr(data.total)}`
+    ? `${data.lines?.length ?? 0} ${data.lines?.length === 1 ? "item" : "items"} · ${inr(data.total)}`
     : kind === "purchase"
       ? `${data.lines?.length ?? 0} lines · ${inr(data.totals?.total)}`
       : `${data.auto_accepted_count ?? 0} clear · ${data.needs_confirm_count ?? 0} to confirm`;
@@ -89,7 +92,11 @@ function ThreadItem({ item, chains }) {
        ?? String(data.status ?? "").replace(/_/g, " "))
     : kind === "purchase"
       ? (data.stock_applied ? "Stock updated ✓" : "Review and save to stock")
-      : (data.status === "committed" ? "Posted to the ledger ✓" : "Review the page");
+      : (data.status === "committed" ? "Posted to the ledger ✓"
+         // Nothing to confirm is not the same as needing review; telling the
+         // owner to review a page the agent read cleanly wastes the one tap he
+         // actually has to make somewhere else.
+         : (data.needs_confirm_count ? "Review the page" : "Ready to post"));
 
   return (
     <Card className="animate-rise overflow-hidden">
@@ -151,8 +158,9 @@ function ThreadItem({ item, chains }) {
             <span className={`w-[6px] h-[6px] rounded-full
               ${flagged ? "bg-amber" : "bg-ink"}`} />
             <span className="flex-1 text-left">
-              {steps.length} agents ran
-              {flagged ? ` · ${flagged} flagged something` : " · nothing flagged"}
+              {flagged
+                ? `${flagged} thing${flagged === 1 ? "" : "s"} need your eye`
+                : "Checked — nothing needs you"}
             </span>
             <span className="text-accent font-semibold">
               {showTrace ? "Hide" : "Show"}
